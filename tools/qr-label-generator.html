@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Generador de Etiquetas QR — Lubricentro E' Manuel</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #f0f2f5; }
+    header {
+      background: #1F3864; color: white; padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    header h1 { font-size: 18px; }
+    .header-actions { display: flex; gap: 10px; }
+
+    .layout { display: flex; gap: 0; min-height: calc(100vh - 52px); }
+
+    /* Panel izquierdo */
+    .sidebar {
+      width: 340px; flex-shrink: 0; background: white;
+      border-right: 1px solid #ddd; padding: 20px; overflow-y: auto;
+    }
+    .section-title {
+      font-size: 13px; font-weight: bold; color: #1F3864;
+      text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;
+    }
+    .form-group { margin-bottom: 12px; }
+    label { display: block; font-size: 13px; color: #444; margin-bottom: 4px; font-weight: 500; }
+    input, select, textarea {
+      width: 100%; padding: 8px 10px; border: 1px solid #ccc;
+      border-radius: 5px; font-size: 13px; outline: none;
+    }
+    input:focus, select:focus, textarea:focus { border-color: #1F3864; }
+    textarea { resize: vertical; min-height: 80px; font-family: monospace; font-size: 12px; }
+    .form-row { display: flex; gap: 8px; }
+    .form-row .form-group { flex: 1; }
+    .btn {
+      display: block; width: 100%; padding: 10px; border: none;
+      border-radius: 5px; font-size: 14px; font-weight: bold;
+      cursor: pointer; margin-bottom: 8px; transition: background 0.15s;
+    }
+    .btn-primary { background: #1F3864; color: white; }
+    .btn-primary:hover { background: #2E4F8A; }
+    .btn-success { background: #2e7d32; color: white; }
+    .btn-success:hover { background: #388e3c; }
+    .btn-danger { background: #c62828; color: white; }
+    .btn-danger:hover { background: #b71c1c; }
+    .btn-secondary { background: #eee; color: #333; }
+    .btn-secondary:hover { background: #ddd; }
+    .mode-toggle {
+      display: flex; gap: 0; margin-bottom: 16px; border: 1px solid #1F3864; border-radius: 5px; overflow: hidden;
+    }
+    .mode-btn {
+      flex: 1; padding: 8px; text-align: center; cursor: pointer;
+      font-size: 13px; font-weight: 500; background: white; color: #1F3864;
+      border: none; transition: all 0.15s;
+    }
+    .mode-btn.active { background: #1F3864; color: white; }
+    .divider { height: 1px; background: #eee; margin: 16px 0; }
+    .queue-count {
+      background: #e3f2fd; color: #1565c0; padding: 6px 10px;
+      border-radius: 5px; font-size: 13px; margin-bottom: 12px;
+      text-align: center; font-weight: bold;
+    }
+
+    /* Panel derecho: preview */
+    .preview-panel { flex: 1; background: #e8e8e8; padding: 20px; overflow-y: auto; }
+    .preview-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+    }
+    .preview-header h2 { font-size: 16px; color: #333; }
+    .labels-grid {
+      display: flex; flex-wrap: wrap; gap: 4mm;
+    }
+    .empty-state {
+      text-align: center; padding: 60px 20px; color: #888;
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+
+    /* Etiqueta (pantalla) */
+    .label-card {
+      width: 189px; height: 113px;
+      background: white; border: 1px solid #ccc; border-radius: 4px;
+      display: flex; padding: 4px; gap: 4px;
+      position: relative; overflow: hidden;
+    }
+    .label-qr { flex-shrink: 0; }
+    .label-qr canvas { display: block; }
+    .label-info { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 1px; }
+    .lbl-nombre {
+      font-size: 9px; font-weight: bold; color: #111;
+      line-height: 1.2; overflow: hidden;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
+    .lbl-marca { font-size: 8px; color: #555; }
+    .lbl-spec { font-size: 8px; color: #333; background: #f0f0f0; padding: 1px 3px; border-radius: 2px; display: inline-block; }
+    .lbl-ubicacion {
+      font-size: 8px; font-weight: bold; color: white;
+      background: #1F3864; padding: 1px 4px; border-radius: 3px;
+      display: inline-block; font-family: monospace;
+    }
+    .lbl-precio { font-size: 11px; font-weight: bold; color: #1F3864; margin-top: auto; }
+    .lbl-codigo { font-size: 7px; color: #888; font-family: monospace; }
+    .lbl-copy-badge {
+      position: absolute; top: 2px; right: 2px;
+      background: #ff5722; color: white; font-size: 7px;
+      padding: 1px 3px; border-radius: 2px; font-weight: bold;
+    }
+    .remove-btn {
+      position: absolute; bottom: 2px; right: 2px;
+      background: #ffebee; border: none; color: #c62828;
+      font-size: 10px; padding: 1px 4px; border-radius: 2px; cursor: pointer;
+    }
+
+    /* Estilos de impresión */
+    @media print {
+      header, .sidebar, .preview-header { display: none !important; }
+      .preview-panel { background: white; padding: 0; }
+      .layout { display: block; }
+      .labels-grid { gap: 2mm; }
+      .empty-state { display: none; }
+
+      .label-card {
+        width: 189px; height: 113px;
+        border: 1px solid #999 !important;
+        page-break-inside: avoid;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .remove-btn { display: none !important; }
+      .lbl-copy-badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .lbl-ubicacion { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Generador de Etiquetas QR — Lubricentro E' Manuel</h1>
+  <div class="header-actions">
+    <button class="btn btn-success" style="width:auto;margin:0;padding:8px 20px;" onclick="imprimirEtiquetas()">🖨 Imprimir Etiquetas</button>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="sidebar">
+
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="btn-manual" onclick="setMode('manual')">Manual</button>
+      <button class="mode-btn" id="btn-csv" onclick="setMode('csv')">CSV / Lote</button>
+    </div>
+
+    <!-- Modo manual -->
+    <div id="modo-manual">
+      <div class="section-title">Datos del Producto</div>
+      <div class="form-group">
+        <label>Código Interno *</label>
+        <input id="f-codigo" type="text" placeholder="Ej: LUB001" />
+      </div>
+      <div class="form-group">
+        <label>Nombre del Producto *</label>
+        <input id="f-nombre" type="text" placeholder="Ej: Aceite Motor Mobil 15W-40" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Marca</label>
+          <input id="f-marca" type="text" placeholder="Ej: Mobil" />
+        </div>
+        <div class="form-group">
+          <label>Especificación</label>
+          <input id="f-spec" type="text" placeholder="Ej: 15W-40" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Zona</label>
+          <select id="f-zona">
+            <option value="">—</option>
+            <option>A</option><option>B</option><option>C</option>
+            <option>D</option><option>E</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Estante</label>
+          <input id="f-estante" type="number" min="1" max="9" placeholder="1" />
+        </div>
+        <div class="form-group">
+          <label>Nivel</label>
+          <input id="f-nivel" type="number" min="1" max="9" placeholder="1" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Precio Venta (S/)</label>
+          <input id="f-precio" type="number" step="0.01" min="0" placeholder="0.00" />
+        </div>
+        <div class="form-group">
+          <label>Copias</label>
+          <input id="f-copias" type="number" min="1" max="20" value="1" />
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="agregarProducto()">+ Agregar a Cola</button>
+    </div>
+
+    <!-- Modo CSV -->
+    <div id="modo-csv" style="display:none">
+      <div class="section-title">Pegar CSV</div>
+      <p style="font-size:12px;color:#666;margin-bottom:8px;">
+        Columnas: <code>codigo,nombre,marca,especificacion,zona,estante,nivel,precio,copias</code>
+      </p>
+      <div class="form-group">
+        <textarea id="csv-input" placeholder="LUB001,Aceite 15W-40,Mobil,15W-40,A,1,1,45.00,2&#10;FIL001,Filtro Aceite,Fram,N/A,C,1,1,18.00,1"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="importarCSV()">Procesar CSV</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div id="queue-info" class="queue-count" style="display:none"></div>
+    <button class="btn btn-danger" onclick="limpiarTodo()" style="margin-top:8px;">🗑 Limpiar Todo</button>
+  </div>
+
+  <div class="preview-panel">
+    <div class="preview-header">
+      <h2>Vista Previa de Etiquetas</h2>
+      <span id="total-labels" style="font-size:13px;color:#666;"></span>
+    </div>
+    <div class="labels-grid" id="labels-grid">
+      <div class="empty-state">
+        <div class="icon">🏷</div>
+        <p>Agrega productos para ver las etiquetas aquí</p>
+        <p style="margin-top:8px;font-size:12px;">Las etiquetas son de 5×3 cm, compatibles con impresora térmica 80mm</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE_URL = 'https://pos.lubricentromanuel.com/producto/';
+let cola = [];
+
+function setMode(mode) {
+  document.getElementById('modo-manual').style.display = mode === 'manual' ? 'block' : 'none';
+  document.getElementById('modo-csv').style.display = mode === 'csv' ? 'block' : 'none';
+  document.getElementById('btn-manual').classList.toggle('active', mode === 'manual');
+  document.getElementById('btn-csv').classList.toggle('active', mode === 'csv');
+}
+
+function ubicacionStr(zona, estante, nivel) {
+  if (!zona) return '';
+  const e = estante || '?';
+  const n = nivel || '?';
+  return `${zona}-${e}-${n}`;
+}
+
+function agregarProducto() {
+  const codigo = document.getElementById('f-codigo').value.trim();
+  const nombre = document.getElementById('f-nombre').value.trim();
+  const marca = document.getElementById('f-marca').value.trim();
+  const spec = document.getElementById('f-spec').value.trim();
+  const zona = document.getElementById('f-zona').value;
+  const estante = document.getElementById('f-estante').value;
+  const nivel = document.getElementById('f-nivel').value;
+  const precio = parseFloat(document.getElementById('f-precio').value) || 0;
+  const copias = parseInt(document.getElementById('f-copias').value) || 1;
+
+  if (!codigo || !nombre) { alert('El Código Interno y el Nombre son obligatorios.'); return; }
+
+  cola.push({ codigo, nombre, marca, spec, zona, estante, nivel, precio, copias });
+  renderLabels();
+  document.getElementById('f-codigo').value = '';
+  document.getElementById('f-nombre').value = '';
+  document.getElementById('f-copias').value = '1';
+}
+
+function importarCSV() {
+  const text = document.getElementById('csv-input').value.trim();
+  if (!text) return;
+  const lineas = text.split('\n');
+  let agregados = 0;
+  lineas.forEach(linea => {
+    const cols = linea.split(',').map(c => c.trim());
+    if (cols.length < 2 || !cols[0]) return;
+    cola.push({
+      codigo: cols[0] || '',
+      nombre: cols[1] || '',
+      marca: cols[2] || '',
+      spec: cols[3] || '',
+      zona: cols[4] || '',
+      estante: cols[5] || '',
+      nivel: cols[6] || '',
+      precio: parseFloat(cols[7]) || 0,
+      copias: parseInt(cols[8]) || 1
+    });
+    agregados++;
+  });
+  renderLabels();
+  document.getElementById('csv-input').value = '';
+  if (agregados) alert(`${agregados} producto(s) agregados a la cola.`);
+}
+
+function limpiarTodo() {
+  if (cola.length === 0) return;
+  if (!confirm('¿Eliminar todas las etiquetas de la cola?')) return;
+  cola = [];
+  renderLabels();
+}
+
+function eliminarItem(idx) {
+  cola.splice(idx, 1);
+  renderLabels();
+}
+
+function renderLabels() {
+  const grid = document.getElementById('labels-grid');
+  const totalElem = document.getElementById('total-labels');
+  const queueInfo = document.getElementById('queue-info');
+
+  const totalCopias = cola.reduce((a, p) => a + p.copias, 0);
+
+  if (cola.length === 0) {
+    grid.innerHTML = `<div class="empty-state">
+      <div class="icon">🏷</div>
+      <p>Agrega productos para ver las etiquetas aquí</p>
+      <p style="margin-top:8px;font-size:12px;">Las etiquetas son de 5×3 cm, compatibles con impresora térmica 80mm</p>
+    </div>`;
+    totalElem.textContent = '';
+    queueInfo.style.display = 'none';
+    return;
+  }
+
+  totalElem.textContent = `${cola.length} producto(s) — ${totalCopias} etiqueta(s) total`;
+  queueInfo.textContent = `${cola.length} productos en cola → ${totalCopias} etiquetas`;
+  queueInfo.style.display = 'block';
+
+  grid.innerHTML = '';
+
+  cola.forEach((prod, idx) => {
+    for (let c = 0; c < prod.copias; c++) {
+      const card = document.createElement('div');
+      card.className = 'label-card';
+      card.id = `label-${idx}-${c}`;
+
+      // QR canvas
+      const qrDiv = document.createElement('div');
+      qrDiv.className = 'label-qr';
+      const canvas = document.createElement('canvas');
+      qrDiv.appendChild(canvas);
+      card.appendChild(qrDiv);
+
+      const qrData = `${BASE_URL}${encodeURIComponent(prod.codigo)}`;
+      QRCode.toCanvas(canvas, qrData, {
+        width: 90, height: 90, margin: 1,
+        color: { dark: '#000000', light: '#FFFFFF' }
+      }, () => {});
+
+      // Info
+      const info = document.createElement('div');
+      info.className = 'label-info';
+
+      const ub = ubicacionStr(prod.zona, prod.estante, prod.nivel);
+      info.innerHTML = `
+        <div class="lbl-nombre">${prod.nombre}</div>
+        ${prod.marca ? `<div class="lbl-marca">${prod.marca}</div>` : ''}
+        ${prod.spec && prod.spec !== 'N/A' ? `<div><span class="lbl-spec">${prod.spec}</span></div>` : ''}
+        ${ub ? `<div><span class="lbl-ubicacion">${ub}</span></div>` : ''}
+        <div class="lbl-precio">${prod.precio > 0 ? 'S/ ' + prod.precio.toFixed(2) : ''}</div>
+        <div class="lbl-codigo">${prod.codigo}</div>
+      `;
+      card.appendChild(info);
+
+      if (prod.copias > 1) {
+        const badge = document.createElement('div');
+        badge.className = 'lbl-copy-badge';
+        badge.textContent = `${c+1}/${prod.copias}`;
+        card.appendChild(badge);
+      }
+
+      if (c === 0) {
+        const rm = document.createElement('button');
+        rm.className = 'remove-btn';
+        rm.textContent = '✕';
+        rm.title = 'Eliminar producto';
+        rm.onclick = () => eliminarItem(idx);
+        card.appendChild(rm);
+      }
+
+      grid.appendChild(card);
+    }
+  });
+}
+
+function imprimirEtiquetas() {
+  if (cola.length === 0) {
+    alert('No hay etiquetas en la cola. Agrega productos primero.');
+    return;
+  }
+  window.print();
+}
+</script>
+</body>
+</html>

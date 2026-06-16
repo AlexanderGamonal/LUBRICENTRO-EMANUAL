@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Generador de Plantilla — Lubricentro E' Manuel</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #f4f6f9; }
+    header {
+      background: #1F3864; color: white; padding: 18px 32px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    header h1 { font-size: 20px; font-weight: bold; }
+    header span { font-size: 14px; opacity: 0.8; }
+    .container { max-width: 720px; margin: 48px auto; padding: 0 16px; }
+    .card {
+      background: white; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 36px;
+    }
+    h2 { color: #1F3864; font-size: 22px; margin-bottom: 8px; }
+    p { color: #555; line-height: 1.6; margin-bottom: 16px; }
+    ul { color: #555; margin: 0 0 24px 20px; line-height: 2; }
+    .btn {
+      display: inline-block; background: #1F3864; color: white;
+      border: none; padding: 14px 32px; border-radius: 7px;
+      font-size: 16px; font-weight: bold; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #2E4F8A; }
+    .btn:active { background: #162847; }
+    .success {
+      display: none; margin-top: 20px; padding: 14px 18px;
+      background: #e8f5e9; border: 1px solid #4caf50; border-radius: 6px;
+      color: #2e7d32; font-weight: bold;
+    }
+    .columns-preview {
+      margin: 24px 0; border: 1px solid #e0e0e0; border-radius: 6px; overflow: auto;
+    }
+    .columns-preview table { border-collapse: collapse; font-size: 13px; width: 100%; }
+    .columns-preview th {
+      background: #1F3864; color: white; padding: 8px 12px;
+      text-align: left; white-space: nowrap;
+    }
+    .columns-preview td { padding: 7px 12px; border-top: 1px solid #eee; color: #333; white-space: nowrap; }
+    .columns-preview tr:nth-child(even) td { background: #f9f9f9; }
+    .tag {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: bold; background: #e3f2fd; color: #1565c0;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Lubricentro E' Manuel</h1>
+    <span>Generador de Plantilla de Productos</span>
+  </div>
+</header>
+
+<div class="container">
+  <div class="card">
+    <h2>Plantilla de Importación de Productos</h2>
+    <p>Descarga la plantilla Excel para registrar tus productos. Completa cada fila con la información de un producto y luego impórtala desde el sistema POS.</p>
+
+    <ul>
+      <li>Encabezados con formato oficial del sistema</li>
+      <li>5 filas de ejemplo para lubricentro incluidas</li>
+      <li>Hoja 2 con instrucciones y valores válidos</li>
+      <li>Formato de moneda <strong>S/</strong> en precio y costo</li>
+      <li>Columnas con ancho optimizado</li>
+    </ul>
+
+    <div class="columns-preview">
+      <table>
+        <thead>
+          <tr>
+            <th>Columna</th>
+            <th>Tipo</th>
+            <th>Obligatorio</th>
+            <th>Descripción</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>codigo_interno</td><td>Texto</td><td><span class="tag">Sí</span></td><td>Código único del producto</td></tr>
+          <tr><td>codigo_barras</td><td>Texto</td><td>No</td><td>Código de barras EAN-13</td></tr>
+          <tr><td>nombre</td><td>Texto</td><td><span class="tag">Sí</span></td><td>Nombre completo del producto</td></tr>
+          <tr><td>marca</td><td>Texto</td><td>No</td><td>Marca fabricante</td></tr>
+          <tr><td>categoria</td><td>Lista</td><td>No</td><td>Categoría del producto</td></tr>
+          <tr><td>viscosidad_especificacion</td><td>Texto</td><td>No</td><td>Ej: 15W-40, EP2</td></tr>
+          <tr><td>precio_venta</td><td>Número</td><td><span class="tag">Sí</span></td><td>Precio de venta en S/</td></tr>
+          <tr><td>costo</td><td>Número</td><td>No</td><td>Costo de compra en S/</td></tr>
+          <tr><td>stock_actual</td><td>Número</td><td>No</td><td>Unidades en stock inicial</td></tr>
+          <tr><td>stock_minimo</td><td>Número</td><td>No</td><td>Stock mínimo para alerta</td></tr>
+          <tr><td>zona</td><td>Letra</td><td>No</td><td>Zona física: A, B, C, D o E</td></tr>
+          <tr><td>estante</td><td>Número</td><td>No</td><td>Número de estante</td></tr>
+          <tr><td>nivel</td><td>Número</td><td>No</td><td>Nivel en el estante</td></tr>
+          <tr><td>tiene_codigo_barras</td><td>Sí/No</td><td>No</td><td>¿El producto tiene código de barras?</td></tr>
+          <tr><td>notas</td><td>Texto</td><td>No</td><td>Observaciones adicionales</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <button class="btn" onclick="generarPlantilla()">⬇ Descargar Plantilla Excel</button>
+
+    <div class="success" id="success">
+      ✅ Plantilla descargada correctamente. Ábrela en Excel o LibreOffice para completar tus productos.
+    </div>
+  </div>
+</div>
+
+<script>
+function generarPlantilla() {
+  const wb = XLSX.utils.book_new();
+
+  const encabezados = [
+    'codigo_interno', 'codigo_barras', 'nombre', 'marca', 'categoria',
+    'viscosidad_especificacion', 'precio_venta', 'costo', 'stock_actual',
+    'stock_minimo', 'zona', 'estante', 'nivel', 'tiene_codigo_barras', 'notas'
+  ];
+
+  const ejemplos = [
+    ['LUB001', '7751403007328', 'Aceite Motor Mobil 15W-40', 'Mobil', 'Aceites Motor', '15W-40', 45.00, 32.00, 24, 5, 'A', 1, 1, 'SI', 'Aceite mineral para motores a gasolina'],
+    ['LUB002', '7751403007335', 'Aceite Motor Mobil 20W-50', 'Mobil', 'Aceites Motor', '20W-50', 42.00, 30.00, 18, 5, 'A', 1, 2, 'SI', 'Aceite mineral para motores diésel'],
+    ['FIL001', '7751123456789', 'Filtro de Aceite Fram PH3614', 'Fram', 'Filtros', 'N/A', 18.00, 12.00, 30, 10, 'C', 1, 1, 'SI', 'Compatible con motores Toyota/Kia'],
+    ['ADI001', '', 'Aditivo Radiador Flush', 'STP', 'Aditivos', 'N/A', 22.00, 15.00, 12, 3, 'D', 2, 1, 'NO', 'Limpiador de sistema de enfriamiento'],
+    ['GRA001', '7754321098765', 'Grasa Multipropósito EP2', 'Castrol', 'Grasas', 'EP2', 35.00, 24.00, 8, 2, 'E', 1, 1, 'SI', 'Grasa de litio para rodamientos']
+  ];
+
+  const datos = [encabezados, ...ejemplos];
+  const ws = XLSX.utils.aoa_to_sheet(datos);
+
+  // Estilos de encabezado
+  const headerStyle = {
+    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+    fill: { fgColor: { rgb: '1F3864' } },
+    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+    border: {
+      top: { style: 'thin', color: { rgb: '0F2044' } },
+      bottom: { style: 'thin', color: { rgb: '0F2044' } },
+      left: { style: 'thin', color: { rgb: '0F2044' } },
+      right: { style: 'thin', color: { rgb: '0F2044' } }
+    }
+  };
+
+  encabezados.forEach((_, i) => {
+    const cell = XLSX.utils.encode_cell({ r: 0, c: i });
+    if (ws[cell]) ws[cell].s = headerStyle;
+  });
+
+  // Formato moneda en precio_venta (col 6) y costo (col 7)
+  const monedaFmt = '"S/ "#,##0.00';
+  for (let r = 1; r <= 5; r++) {
+    ['F', 'G'].forEach(col => {
+      const addr = col + (r + 1);
+      const cellAddr = XLSX.utils.encode_cell({ r, c: col === 'F' ? 6 : 7 });
+      if (ws[cellAddr]) ws[cellAddr].z = monedaFmt;
+    });
+  }
+
+  // Anchos de columna
+  ws['!cols'] = [
+    { wch: 14 }, { wch: 18 }, { wch: 38 }, { wch: 14 }, { wch: 22 },
+    { wch: 20 }, { wch: 13 }, { wch: 13 }, { wch: 12 }, { wch: 12 },
+    { wch: 7 }, { wch: 9 }, { wch: 8 }, { wch: 18 }, { wch: 42 }
+  ];
+
+  // Congelar primera fila
+  ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Productos');
+
+  // Hoja 2: Instrucciones
+  const instrData = [
+    ['VALORES VÁLIDOS — Lubricentro E\' Manuel'],
+    [],
+    ['CATEGORÍAS VÁLIDAS'],
+    ['Aceites Motor'],
+    ['Aceites Diésel'],
+    ['Filtros'],
+    ['Lubricantes Especiales'],
+    ['Aditivos'],
+    ['Refrigerantes'],
+    ['Grasas'],
+    ['Bujías'],
+    ['Siliconas'],
+    ['Otros'],
+    [],
+    ['ZONAS VÁLIDAS'],
+    ['A — Aceites para Gasolina'],
+    ['B — Aceites para Diésel'],
+    ['C — Filtros de Aceite y Aire'],
+    ['D — Aditivos y Refrigerantes'],
+    ['E — Grasas, Bujías, Siliconas y Otros'],
+    [],
+    ['TIENE_CODIGO_BARRAS'],
+    ['SI'],
+    ['NO'],
+    [],
+    ['NOTAS IMPORTANTES'],
+    ['• codigo_interno debe ser único por sucursal'],
+    ['• precio_venta debe ser mayor a 0'],
+    ['• stock_actual: cantidad inicial en inventario'],
+    ['• stock_minimo: nivel que activa la alerta de reposición'],
+    ['• La ubicación se forma: ZONA-ESTANTE-NIVEL (ej: A-1-2)'],
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(instrData);
+  ws2['!cols'] = [{ wch: 50 }];
+  // Título
+  if (ws2['A1']) ws2['A1'].s = { font: { bold: true, sz: 14, color: { rgb: '1F3864' } } };
+  XLSX.utils.book_append_sheet(wb, ws2, 'Instrucciones');
+
+  XLSX.writeFile(wb, 'plantilla-productos-lubricentro.xlsx');
+
+  document.getElementById('success').style.display = 'block';
+  setTimeout(() => { document.getElementById('success').style.display = 'none'; }, 5000);
+}
+</script>
+</body>
+</html>

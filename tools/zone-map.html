@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mapa de Zonas — Lubricentro E' Manuel</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #f4f4f4; }
+
+    .screen-header {
+      background: #1F3864; color: white; padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .screen-header h1 { font-size: 18px; }
+    .btn-print {
+      background: white; color: #1F3864; border: none;
+      padding: 9px 22px; border-radius: 5px; font-size: 14px;
+      font-weight: bold; cursor: pointer;
+    }
+    .btn-print:hover { background: #e3eaf5; }
+
+    .page {
+      width: 297mm; min-height: 210mm;
+      margin: 20px auto; background: white;
+      padding: 10mm 12mm; position: relative;
+    }
+
+    .page-header { text-align: center; margin-bottom: 8mm; }
+    .page-header h1 { color: #1F3864; font-size: 22pt; font-weight: bold; }
+    .page-header p { color: #555; font-size: 10pt; margin-top: 2mm; }
+    .page-header .subtitle {
+      font-size: 11pt; color: #333; margin-top: 1mm;
+      border-top: 2px solid #1F3864; border-bottom: 2px solid #1F3864;
+      padding: 3px 0; margin: 4mm 0 0 0;
+    }
+
+    .zonas-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto auto;
+      gap: 5mm;
+      margin-top: 5mm;
+    }
+
+    .zona-card {
+      border-radius: 6px; padding: 4mm;
+      border: 2px solid rgba(0,0,0,0.12);
+    }
+
+    .zona-a { background: #E3F2FD; border-color: #1565C0; }
+    .zona-b { background: #E8F5E9; border-color: #2E7D32; }
+    .zona-c { background: #FFF3E0; border-color: #E65100; }
+    .zona-d { background: #F3E5F5; border-color: #6A1B9A; }
+    .zona-e { background: #FFFDE7; border-color: #F57F17; grid-column: 1 / -1; }
+
+    .zona-header {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 3mm;
+    }
+    .zona-badge {
+      width: 32pt; height: 32pt; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16pt; font-weight: 900; color: white; flex-shrink: 0;
+    }
+    .badge-a { background: #1565C0; }
+    .badge-b { background: #2E7D32; }
+    .badge-c { background: #E65100; }
+    .badge-d { background: #6A1B9A; }
+    .badge-e { background: #F57F17; }
+
+    .zona-title { font-size: 12pt; font-weight: bold; color: #222; line-height: 1.2; }
+    .zona-subtitle { font-size: 9pt; color: #555; }
+
+    .shelves-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2mm;
+      margin-top: 2mm;
+    }
+    .zona-e .shelves-grid { grid-template-columns: repeat(6, 1fr); }
+
+    .shelf {
+      background: white; border-radius: 4px;
+      border: 1px solid rgba(0,0,0,0.15);
+      padding: 2mm;
+    }
+    .shelf-label {
+      font-size: 7.5pt; font-weight: bold; color: #333;
+      text-align: center; margin-bottom: 1mm; border-bottom: 1px solid #ddd; padding-bottom: 1mm;
+    }
+    .levels { display: flex; flex-direction: column; gap: 1mm; }
+    .level-cell {
+      background: #f8f8f8; border: 1px solid #e0e0e0;
+      border-radius: 3px; padding: 2px 4px;
+      font-size: 8pt; color: #555;
+      text-align: center; font-family: monospace; letter-spacing: 0.5px;
+    }
+
+    .legend {
+      margin-top: 5mm; border-top: 1px solid #ddd; padding-top: 3mm;
+      display: flex; justify-content: space-between; align-items: flex-start;
+    }
+    .legend-title { font-size: 9pt; font-weight: bold; color: #333; margin-bottom: 2mm; }
+    .legend-item { font-size: 8.5pt; color: #444; margin-bottom: 1mm; }
+    .legend-code {
+      font-family: monospace; background: #f0f0f0; padding: 2px 5px;
+      border-radius: 3px; font-size: 9pt;
+    }
+    .firma-line {
+      font-size: 9pt; color: #333; border-top: 1px solid #999;
+      padding-top: 2px; width: 120mm; text-align: center;
+    }
+    .fecha-section { text-align: right; font-size: 9pt; color: #555; }
+
+    @media print {
+      .screen-header { display: none !important; }
+      body { background: white; }
+      .page { margin: 0; padding: 8mm 10mm; box-shadow: none; }
+    }
+
+    @media screen {
+      .page {
+        box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="screen-header">
+  <h1>Mapa de Zonas Físicas — Lubricentro E' Manuel</h1>
+  <button class="btn-print" onclick="window.print()">🖨 Imprimir</button>
+</div>
+
+<div class="page">
+  <div class="page-header">
+    <h1>Lubricentro E' Manuel</h1>
+    <p>Av. Próceres de la Independencia Mz B-1 Lote 1, Los Pinos, SJL, Lima</p>
+    <div class="subtitle">MAPA DE DISTRIBUCIÓN FÍSICA DE ZONAS DE ALMACÉN</div>
+  </div>
+
+  <div class="zonas-grid">
+
+    <!-- ZONA A -->
+    <div class="zona-card zona-a">
+      <div class="zona-header">
+        <div class="zona-badge badge-a">A</div>
+        <div>
+          <div class="zona-title">ZONA A — Aceites para Gasolina</div>
+          <div class="zona-subtitle">Aceites motor multigrado (gasolina)</div>
+        </div>
+      </div>
+      <div class="shelves-grid">
+        <div class="shelf">
+          <div class="shelf-label">Estante 1</div>
+          <div class="levels">
+            <div class="level-cell">A-1-1</div>
+            <div class="level-cell">A-1-2</div>
+            <div class="level-cell">A-1-3</div>
+          </div>
+        </div>
+        <div class="shelf">
+          <div class="shelf-label">Estante 2</div>
+          <div class="levels">
+            <div class="level-cell">A-2-1</div>
+            <div class="level-cell">A-2-2</div>
+            <div class="level-cell">A-2-3</div>
+          </div>
+        </div>
+        <div class="shelf">
+          <div class="shelf-label">Estante 3</div>
+          <div class="levels">
+            <div class="level-cell">A-3-1</div>
+            <div class="level-cell">A-3-2</div>
+            <div class="level-cell">A-3-3</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ZONA B -->
+    <div class="zona-card zona-b">
+      <div class="zona-header">
+        <div class="zona-badge badge-b">B</div>
+        <div>
+          <div class="zona-title">ZONA B — Aceites para Diésel</div>
+          <div class="zona-subtitle">Aceites motor multigrado (diésel)</div>
+        </div>
+      </div>
+      <div class="shelves-grid">
+        <div class="shelf">
+          <div class="shelf-label">Estante 1</div>
+          <div class="levels">
+            <div class="level-cell">B-1-1</div>
+            <div class="level-cell">B-1-2</div>
+            <div class="level-cell">B-1-3</div>
+          </div>
+        </div>
+        <div class="shelf">
+          <div class="shelf-label">Estante 2</div>
+          <div class="levels">
+            <div class="level-cell">B-2-1</div>
+            <div class="level-cell">B-2-2</div>
+            <div class="level-cell">B-2-3</div>
+          </div>
+        </div>
+        <div class="shelf">
+          <div class="shelf-label">Estante 3</div>
+          <div class="levels">
+            <div class="level-cell">B-3-1</div>
+            <div class="level-cell">B-3-2</div>
+            <div class="level-cell">B-3-3</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ZONA C -->
+    <div class="zona-card zona-c">
+      <div class="zona-header">
+        <div class="zona-badge badge-c">C</div>
+        <div>
+          <div class="zona-title">ZONA C — Filtros de Aceite y Aire</div>
+          <div class="zona-subtitle">Filtros de aceite, aire, combustible y habitáculo</div>
+        </div>
+      </div>
+      <div class="shelves-grid">
+        <div class="shelf">
+          <div class="shelf-label">Estante 1</div>
+          <div class="levels">
+            <div class="level-cell">C-1-1</div>
+            <div class="level-cell">C-1-2</div>
+            <div class="level-cell">C-1-3</div>
+          </div>
+        </div>
+        <div class="shelf">
+          <div class="shelf-label">Estante 2</div>
+          <div class="levels">
+            <div class="level-cell">C-2-1</div>
+            <div class="level-cell">C-2-2</div>
+            <div class="level-cell">C-2-3</div>
+          </div>
+        </div>
+        <div class="shelf">
+          <div class="shelf-label">Estante 3</div>
+          <div class="levels">
+            <div class="level-cell">C-3-1</div>
+            <div class="level-cell">C-3-2</div>
+            <div class="level-cell">C-3-3</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ZONA D -->
+    <div class="zona-card zona-d">
+      <div class="zona-header">
+        <div class="zona-badge badge-d">D</div>
+        <div>
+          <div class="zona-title">ZONA D — Aditivos y Refrigerantes</div>
+          <div class="zona-subtitle">Aditivos de motor, refrigerante y líquido de frenos</div>
+        </div>
+      </div>
+      <div class="shelves-grid">
+        <div class="shelf">
+          <div class="shelf-label">Estante 1</div>
+          <div class="levels">
+            <div class="level-cell">D-1-1</div>
+            <div class="level-cell">D-1-2</div>
+            <div class="level-cell">D-1-3</div>
+          </div>
+        </div>
+        <div class="shelf">
+          <div class="shelf-label">Estante 2</div>
+          <div class="levels">
+            <div class="level-cell">D-2-1</div>
+            <div class="level-cell">D-2-2</div>
+            <div class="level-cell">D-2-3</div>
+          </div>
+        </div>
+        <div class="shelf">
+          <div class="shelf-label">Estante 3</div>
+          <div class="levels">
+            <div class="level-cell">D-3-1</div>
+            <div class="level-cell">D-3-2</div>
+            <div class="level-cell">D-3-3</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ZONA E (full width) -->
+    <div class="zona-card zona-e">
+      <div class="zona-header">
+        <div class="zona-badge badge-e">E</div>
+        <div>
+          <div class="zona-title">ZONA E — Grasas, Bujías, Siliconas y Otros</div>
+          <div class="zona-subtitle">Productos varios de mantenimiento</div>
+        </div>
+      </div>
+      <div class="shelves-grid">
+        <div class="shelf">
+          <div class="shelf-label">Estante 1</div>
+          <div class="levels">
+            <div class="level-cell">E-1-1</div>
+            <div class="level-cell">E-1-2</div>
+            <div class="level-cell">E-1-3</div>
+          </div>
+        </div>
+        <div class="shelf">
+          <div class="shelf-label">Estante 2</div>
+          <div class="levels">
+            <div class="level-cell">E-2-1</div>
+            <div class="level-cell">E-2-2</div>
+            <div class="level-cell">E-2-3</div>
+          </div>
+        </div>
+        <div class="shelf">
+          <div class="shelf-label">Estante 3</div>
+          <div class="levels">
+            <div class="level-cell">E-3-1</div>
+            <div class="level-cell">E-3-2</div>
+            <div class="level-cell">E-3-3</div>
+          </div>
+        </div>
+        <div class="shelf">
+          <div class="shelf-label">Estante 4</div>
+          <div class="levels">
+            <div class="level-cell">E-4-1</div>
+            <div class="level-cell">E-4-2</div>
+            <div class="level-cell">E-4-3</div>
+          </div>
+        </div>
+        <div class="shelf">
+          <div class="shelf-label">Estante 5</div>
+          <div class="levels">
+            <div class="level-cell">E-5-1</div>
+            <div class="level-cell">E-5-2</div>
+            <div class="level-cell">E-5-3</div>
+          </div>
+        </div>
+        <div class="shelf">
+          <div class="shelf-label">Estante 6</div>
+          <div class="levels">
+            <div class="level-cell">E-6-1</div>
+            <div class="level-cell">E-6-2</div>
+            <div class="level-cell">E-6-3</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="legend">
+    <div>
+      <div class="legend-title">Código de Ubicación:</div>
+      <div class="legend-item">
+        Formato: <span class="legend-code">[ZONA]-[ESTANTE]-[NIVEL]</span>
+      </div>
+      <div class="legend-item">Ejemplo: <span class="legend-code">A-1-2</span> = Zona A, Estante 1, Nivel 2</div>
+      <div class="legend-item">Ejemplo: <span class="legend-code">C-3-1</span> = Zona C, Estante 3, Nivel 1</div>
+    </div>
+    <div style="text-align:center;">
+      <div class="legend-title" style="margin-bottom:6mm;">Responsable de Almacén:</div>
+      <div class="firma-line">_________________________________</div>
+      <div style="font-size:8pt;color:#888;margin-top:2mm;">Firma y sello</div>
+    </div>
+    <div class="fecha-section">
+      <div class="legend-title">Información:</div>
+      <div class="legend-item">RUC: 10106614267</div>
+      <div class="legend-item" id="fecha-doc"></div>
+      <div class="legend-item">Versión: 1.0</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const hoy = new Date();
+  const opciones = { day: '2-digit', month: 'long', year: 'numeric' };
+  document.getElementById('fecha-doc').textContent =
+    'Fecha: ' + hoy.toLocaleDateString('es-PE', opciones);
+</script>
+</body>
+</html>
