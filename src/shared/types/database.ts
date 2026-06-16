@@ -16,6 +16,26 @@ export type EstadoCaja = 'abierta' | 'cerrada'
 export type TipoCajaMovimiento = 'ingreso' | 'egreso'
 export type EstadoCredito = 'pendiente' | 'parcial' | 'pagado' | 'vencido'
 
+export type ProductoInsert = {
+  sucursal_id: string
+  codigo_interno: string
+  nombre: string
+  precio_venta: number
+  categoria_id?: string | null
+  ubicacion_id?: string | null
+  codigo_barras?: string | null
+  marca?: string | null
+  viscosidad_especificacion?: string | null
+  costo?: number
+  stock_actual?: number
+  stock_minimo?: number
+  tiene_codigo_barras?: boolean
+  foto_url?: string | null
+  activo?: boolean
+}
+
+export type ProductoUpdate = Partial<ProductoInsert>
+
 export interface Database {
   public: {
     Tables: {
@@ -29,8 +49,19 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['sucursales']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['sucursales']['Insert']>
+        Insert: {
+          nombre: string
+          direccion?: string | null
+          telefono?: string | null
+          activa?: boolean
+        }
+        Update: {
+          nombre?: string
+          direccion?: string | null
+          telefono?: string | null
+          activa?: boolean
+        }
+        Relationships: []
       }
       usuarios: {
         Row: {
@@ -44,8 +75,23 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['usuarios']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['usuarios']['Insert']>
+        Insert: {
+          auth_user_id?: string | null
+          sucursal_id: string
+          nombre: string
+          email?: string | null
+          rol: RolUsuario
+          activo?: boolean
+        }
+        Update: {
+          auth_user_id?: string | null
+          sucursal_id?: string
+          nombre?: string
+          email?: string | null
+          rol?: RolUsuario
+          activo?: boolean
+        }
+        Relationships: []
       }
       categorias: {
         Row: {
@@ -57,8 +103,19 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['categorias']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['categorias']['Insert']>
+        Insert: {
+          sucursal_id: string
+          nombre: string
+          descripcion?: string | null
+          activa?: boolean
+        }
+        Update: {
+          sucursal_id?: string
+          nombre?: string
+          descripcion?: string | null
+          activa?: boolean
+        }
+        Relationships: []
       }
       ubicaciones: {
         Row: {
@@ -73,8 +130,19 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['ubicaciones']['Row'], 'id' | 'codigo' | 'created_at' | 'updated_at'>
-        Update: Partial<Omit<Database['public']['Tables']['ubicaciones']['Insert'], 'zona' | 'estante' | 'nivel'>>
+        Insert: {
+          sucursal_id: string
+          zona: string
+          estante: number
+          nivel: number
+          descripcion?: string | null
+          activa?: boolean
+        }
+        Update: {
+          descripcion?: string | null
+          activa?: boolean
+        }
+        Relationships: []
       }
       productos: {
         Row: {
@@ -97,8 +165,9 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['productos']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['productos']['Insert']>
+        Insert: ProductoInsert
+        Update: ProductoUpdate
+        Relationships: []
       }
       movimientos_stock: {
         Row: {
@@ -115,8 +184,20 @@ export interface Database {
           referencia_id: string | null
           created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['movimientos_stock']['Row'], 'id' | 'created_at'>
+        Insert: {
+          sucursal_id: string
+          producto_id: string
+          usuario_id?: string | null
+          tipo: TipoMovimientoStock
+          cantidad: number
+          cantidad_anterior: number
+          cantidad_nueva: number
+          motivo?: string | null
+          referencia_tipo?: string | null
+          referencia_id?: string | null
+        }
         Update: never
+        Relationships: []
       }
       clientes: {
         Row: {
@@ -132,8 +213,27 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['clientes']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['clientes']['Insert']>
+        Insert: {
+          sucursal_id: string
+          nombre: string
+          telefono?: string | null
+          email?: string | null
+          tipo?: TipoCliente
+          ruc_dni?: string | null
+          direccion?: string | null
+          activo?: boolean
+        }
+        Update: {
+          sucursal_id?: string
+          nombre?: string
+          telefono?: string | null
+          email?: string | null
+          tipo?: TipoCliente
+          ruc_dni?: string | null
+          direccion?: string | null
+          activo?: boolean
+        }
+        Relationships: []
       }
       vehiculos: {
         Row: {
@@ -149,8 +249,27 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['vehiculos']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['vehiculos']['Insert']>
+        Insert: {
+          sucursal_id: string
+          cliente_id?: string | null
+          placa: string
+          marca_vehiculo?: string | null
+          modelo?: string | null
+          anio?: number | null
+          color?: string | null
+          activo?: boolean
+        }
+        Update: {
+          sucursal_id?: string
+          cliente_id?: string | null
+          placa?: string
+          marca_vehiculo?: string | null
+          modelo?: string | null
+          anio?: number | null
+          color?: string | null
+          activo?: boolean
+        }
+        Relationships: []
       }
       cajas: {
         Row: {
@@ -169,8 +288,33 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['cajas']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['cajas']['Insert']>
+        Insert: {
+          sucursal_id: string
+          usuario_id: string
+          fecha: string
+          monto_apertura: number
+          monto_cierre_esperado?: number | null
+          monto_cierre_real?: number | null
+          diferencia?: number | null
+          estado?: EstadoCaja
+          observaciones?: string | null
+          opened_at: string
+          closed_at?: string | null
+        }
+        Update: {
+          sucursal_id?: string
+          usuario_id?: string
+          fecha?: string
+          monto_apertura?: number
+          monto_cierre_esperado?: number | null
+          monto_cierre_real?: number | null
+          diferencia?: number | null
+          estado?: EstadoCaja
+          observaciones?: string | null
+          opened_at?: string
+          closed_at?: string | null
+        }
+        Relationships: []
       }
       ventas: {
         Row: {
@@ -188,8 +332,31 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['ventas']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['ventas']['Insert']>
+        Insert: {
+          sucursal_id: string
+          usuario_id: string
+          cliente_id?: string | null
+          caja_id?: string | null
+          subtotal: number
+          descuento?: number
+          total: number
+          medio_pago: MedioPago
+          estado?: EstadoVenta
+          observaciones?: string | null
+        }
+        Update: {
+          sucursal_id?: string
+          usuario_id?: string
+          cliente_id?: string | null
+          caja_id?: string | null
+          subtotal?: number
+          descuento?: number
+          total?: number
+          medio_pago?: MedioPago
+          estado?: EstadoVenta
+          observaciones?: string | null
+        }
+        Relationships: []
       }
       venta_items: {
         Row: {
@@ -202,8 +369,16 @@ export interface Database {
           subtotal: number
           created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['venta_items']['Row'], 'id' | 'created_at'>
+        Insert: {
+          sucursal_id: string
+          venta_id: string
+          producto_id?: string | null
+          cantidad: number
+          precio_unitario: number
+          subtotal: number
+        }
         Update: never
+        Relationships: []
       }
       creditos_cliente: {
         Row: {
@@ -219,8 +394,27 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['creditos_cliente']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['creditos_cliente']['Insert']>
+        Insert: {
+          sucursal_id: string
+          cliente_id: string
+          venta_id?: string | null
+          monto_total: number
+          monto_pagado?: number
+          saldo: number
+          estado?: EstadoCredito
+          fecha_vencimiento?: string | null
+        }
+        Update: {
+          sucursal_id?: string
+          cliente_id?: string
+          venta_id?: string | null
+          monto_total?: number
+          monto_pagado?: number
+          saldo?: number
+          estado?: EstadoCredito
+          fecha_vencimiento?: string | null
+        }
+        Relationships: []
       }
       auditoria_eventos: {
         Row: {
@@ -235,8 +429,18 @@ export interface Database {
           ip_address: string | null
           created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['auditoria_eventos']['Row'], 'id' | 'created_at'>
+        Insert: {
+          sucursal_id?: string | null
+          usuario_id?: string | null
+          entidad: string
+          entidad_id?: string | null
+          accion: string
+          datos_anteriores?: Json | null
+          datos_nuevos?: Json | null
+          ip_address?: string | null
+        }
         Update: never
+        Relationships: []
       }
     }
     Views: {
@@ -269,6 +473,7 @@ export interface Database {
           valor_costo_total: number
           valor_venta_total: number
         }
+        Relationships: []
       }
       vw_stock_bajo: {
         Row: {
@@ -286,6 +491,7 @@ export interface Database {
           precio_venta: number
           costo: number
         }
+        Relationships: []
       }
       vw_valor_inventario: {
         Row: {
@@ -296,6 +502,7 @@ export interface Database {
           valor_costo: number
           valor_venta: number
         }
+        Relationships: []
       }
       vw_movimientos_stock_detalle: {
         Row: {
@@ -316,6 +523,7 @@ export interface Database {
           usuario_id: string | null
           usuario_nombre: string | null
         }
+        Relationships: []
       }
       vw_ventas_detalle: {
         Row: {
@@ -336,6 +544,7 @@ export interface Database {
           usuario_nombre: string
           total_items: number
         }
+        Relationships: []
       }
       vw_caja_resumen: {
         Row: {
@@ -357,6 +566,7 @@ export interface Database {
           num_ingresos: number
           num_egresos: number
         }
+        Relationships: []
       }
     }
     Functions: {
@@ -369,7 +579,7 @@ export interface Database {
           p_referencia_tipo?: string | null
           p_referencia_id?: string | null
         }
-        Returns: Database['public']['Tables']['movimientos_stock']['Row']
+        Returns: Json
       }
       ajustar_stock: {
         Args: {
@@ -381,7 +591,7 @@ export interface Database {
       }
       abrir_caja: {
         Args: { p_monto_apertura?: number }
-        Returns: Database['public']['Tables']['cajas']['Row']
+        Returns: Json
       }
       cerrar_caja: {
         Args: {
@@ -425,9 +635,9 @@ export interface Database {
         }
         Returns: Json
       }
-      current_usuario_id: { Args: Record<never, never>; Returns: string }
-      current_sucursal_id: { Args: Record<never, never>; Returns: string }
-      current_user_role: { Args: Record<never, never>; Returns: string }
+      current_usuario_id: { Args: Record<string, never>; Returns: string }
+      current_sucursal_id: { Args: Record<string, never>; Returns: string }
+      current_user_role: { Args: Record<string, never>; Returns: string }
     }
     Enums: {
       rol_usuario: RolUsuario
@@ -440,5 +650,6 @@ export interface Database {
       tipo_caja_movimiento: TipoCajaMovimiento
       estado_credito: EstadoCredito
     }
+    CompositeTypes: Record<string, never>
   }
 }
