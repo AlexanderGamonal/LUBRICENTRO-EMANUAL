@@ -366,6 +366,7 @@ export interface Database {
           producto_id: string | null
           cantidad: number
           precio_unitario: number
+          costo_unitario: number
           subtotal: number
           created_at: string
         }
@@ -375,6 +376,7 @@ export interface Database {
           producto_id?: string | null
           cantidad: number
           precio_unitario: number
+          costo_unitario?: number
           subtotal: number
         }
         Update: never
@@ -565,6 +567,17 @@ export interface Database {
           saldo_calculado: number
           num_ingresos: number
           num_egresos: number
+        }
+        Relationships: []
+      }
+      vw_ganancias_ventas: {
+        Row: {
+          sucursal_id: string
+          fecha: string
+          ingresos: number
+          costo_real: number
+          ganancia: number
+          total_ventas: number
         }
         Relationships: []
       }

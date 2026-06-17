@@ -59,6 +59,9 @@ export function InventarioPage() {
   const totalProductos = valorInventario?.reduce((s, r) => s + r.total_productos, 0) ?? 0
   const totalUnidades = valorInventario?.reduce((s, r) => s + r.total_unidades, 0) ?? 0
   const totalValorVenta = valorInventario?.reduce((s, r) => s + r.valor_venta, 0) ?? 0
+  const totalValorCosto = valorInventario?.reduce((s, r) => s + r.valor_costo, 0) ?? 0
+  const totalUtilidad = totalValorVenta - totalValorCosto
+  const margenPct = totalValorVenta > 0 ? (totalUtilidad / totalValorVenta) * 100 : 0
 
   // ---- Tab 2: Stock Bajo ----
   const { data: stockBajo, isLoading: loadingStockBajo } = useQuery<StockBajo[]>({
@@ -129,7 +132,7 @@ export function InventarioPage() {
       {tab === 'resumen' && (
         <div>
           {/* Tarjetas resumen */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <div className="card">
               <p className="text-sm text-gray-500">Total Productos</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">
@@ -146,6 +149,15 @@ export function InventarioPage() {
               <p className="text-sm text-gray-500">Valor Inventario (Venta)</p>
               <p className="text-3xl font-bold text-primary-700 mt-1">
                 {loadingValor ? '—' : formatCurrency(totalValorVenta)}
+              </p>
+            </div>
+            <div className="card border-l-4 border-l-green-500">
+              <p className="text-sm text-gray-500">Utilidad Potencial</p>
+              <p className="text-3xl font-bold text-green-700 mt-1">
+                {loadingValor ? '—' : formatCurrency(totalUtilidad)}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {loadingValor ? '' : `Margen ${margenPct.toFixed(1)}% sobre venta`}
               </p>
             </div>
           </div>
@@ -174,13 +186,16 @@ export function InventarioPage() {
                     <th className="px-4 py-3 font-medium text-right">
                       Valor Venta
                     </th>
+                    <th className="px-4 py-3 font-medium text-right text-green-700">
+                      Utilidad
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {loadingValor &&
                     [1, 2, 3].map((n) => (
                       <tr key={n}>
-                        {[1, 2, 3, 4, 5].map((c) => (
+                        {[1, 2, 3, 4, 5, 6].map((c) => (
                           <td key={c} className="px-4 py-3">
                             <div className="h-4 bg-gray-200 rounded animate-pulse" />
                           </td>
@@ -191,7 +206,7 @@ export function InventarioPage() {
                     (!valorInventario || valorInventario.length === 0) && (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={6}
                           className="px-4 py-8 text-center text-gray-400"
                         >
                           Sin datos de inventario
@@ -215,6 +230,14 @@ export function InventarioPage() {
                       <td className="px-4 py-3 text-right font-medium text-gray-900">
                         {formatCurrency(row.valor_venta)}
                       </td>
+                      <td className="px-4 py-3 text-right font-semibold text-green-700">
+                        {formatCurrency(row.valor_venta - row.valor_costo)}
+                        <div className="text-xs font-normal text-gray-400">
+                          {row.valor_venta > 0
+                            ? `${(((row.valor_venta - row.valor_costo) / row.valor_venta) * 100).toFixed(1)}%`
+                            : '—'}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {valorInventario && valorInventario.length > 0 && (
@@ -227,15 +250,16 @@ export function InventarioPage() {
                         {totalUnidades}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-900">
-                        {formatCurrency(
-                          valorInventario.reduce(
-                            (s, r) => s + r.valor_costo,
-                            0,
-                          ),
-                        )}
+                        {formatCurrency(totalValorCosto)}
                       </td>
                       <td className="px-4 py-3 text-right text-primary-700">
                         {formatCurrency(totalValorVenta)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-green-700">
+                        {formatCurrency(totalUtilidad)}
+                        <div className="text-xs font-normal text-gray-500">
+                          {margenPct.toFixed(1)}%
+                        </div>
                       </td>
                     </tr>
                   )}

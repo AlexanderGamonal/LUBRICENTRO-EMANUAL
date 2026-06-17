@@ -16,6 +16,26 @@ function StockBadge({ estado }: { estado: StockEstado }) {
   return <span className="badge-ok">OK</span>
 }
 
+function MargenBadge({ precio, costo }: { precio: number; costo: number }) {
+  if (!costo || costo === 0) {
+    return <span className="text-xs text-gray-400 italic">Sin costo</span>
+  }
+  const margen = precio - costo
+  const pct = precio > 0 ? (margen / precio) * 100 : 0
+  const color =
+    pct >= 30 ? 'text-green-700 bg-green-50' :
+    pct >= 10 ? 'text-yellow-700 bg-yellow-50' :
+                'text-red-700 bg-red-50'
+  return (
+    <div className="text-right">
+      <div className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block ${color}`}>
+        {pct.toFixed(1)}%
+      </div>
+      <div className="text-xs text-gray-500 mt-0.5">{formatCurrency(margen)}</div>
+    </div>
+  )
+}
+
 export function ProductosListPage() {
   const { user } = useAuth()
   const [search, setSearch] = useState('')
@@ -92,6 +112,7 @@ export function ProductosListPage() {
                 <th className="px-4 py-3 font-medium">Ubicación</th>
                 <th className="px-4 py-3 font-medium">Stock</th>
                 <th className="px-4 py-3 font-medium">P. Venta</th>
+                <th className="px-4 py-3 font-medium text-right">Margen</th>
                 <th className="px-4 py-3 font-medium">Acciones</th>
               </tr>
             </thead>
@@ -99,7 +120,7 @@ export function ProductosListPage() {
               {isLoading &&
                 [1, 2, 3].map((n) => (
                   <tr key={n}>
-                    {[1, 2, 3, 4, 5, 6, 7].map((c) => (
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
                       <td key={c} className="px-4 py-3">
                         <div className="h-4 bg-gray-200 rounded animate-pulse" />
                       </td>
@@ -109,7 +130,7 @@ export function ProductosListPage() {
               {!isLoading && (!productos || productos.length === 0) && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-4 py-12 text-center text-gray-400"
                   >
                     No se encontraron productos
@@ -152,6 +173,9 @@ export function ProductosListPage() {
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900">
                     {formatCurrency(p.precio_venta)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <MargenBadge precio={p.precio_venta} costo={p.costo} />
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
