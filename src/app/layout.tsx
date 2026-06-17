@@ -4,16 +4,45 @@ import { useOnlineStatus } from '@/shared/hooks/useOnlineStatus'
 import { formatRolUsuario } from '@/shared/utils/formatters'
 import { useState, useEffect } from 'react'
 
-const navItems = [
-  { to: '/', label: 'Dashboard', icon: HomeIcon, exact: true },
-  { to: '/productos', label: 'Productos', icon: PackageIcon },
+const navSections = [
+  {
+    label: 'Ventas',
+    items: [
+      { to: '/caja', label: 'Caja', icon: CajaIcon },
+      { to: '/ventas/nueva', label: 'Nueva Venta', icon: PosIcon },
+      { to: '/ventas', label: 'Historial', icon: ReceiptIcon },
+      { to: '/clientes', label: 'Clientes', icon: UsersIcon },
+      { to: '/creditos', label: 'Créditos', icon: CreditIcon },
+    ],
+  },
+  {
+    label: 'Inventario',
+    items: [
+      { to: '/', label: 'Dashboard', icon: HomeIcon, exact: true },
+      { to: '/productos', label: 'Productos', icon: PackageIcon },
+      { to: '/inventario', label: 'Inventario', icon: ChartIcon },
+      { to: '/busqueda', label: 'Búsqueda', icon: SearchIcon },
+      { to: '/importacion', label: 'Importar', icon: UploadIcon },
+    ],
+  },
+]
+
+// Flat list for mobile bottom nav (most used 5)
+const mobileNavItems = [
+  { to: '/', label: 'Inicio', icon: HomeIcon, exact: true },
+  { to: '/ventas/nueva', label: 'Vender', icon: PosIcon },
+  { to: '/busqueda', label: 'Buscar', icon: SearchIcon },
   { to: '/inventario', label: 'Inventario', icon: ChartIcon },
-  { to: '/busqueda', label: 'Búsqueda', icon: SearchIcon },
-  { to: '/importacion', label: 'Importar', icon: UploadIcon },
+  { to: '/clientes', label: 'Clientes', icon: UsersIcon },
 ]
 
 const pageTitles: Record<string, string> = {
   '/': 'Dashboard',
+  '/caja': 'Gestión de Caja',
+  '/ventas': 'Historial de Ventas',
+  '/ventas/nueva': 'Nueva Venta',
+  '/clientes': 'Clientes',
+  '/creditos': 'Créditos',
   '/productos': 'Productos',
   '/inventario': 'Inventario',
   '/busqueda': 'Búsqueda Rápida',
@@ -26,6 +55,8 @@ function usePageTitle() {
   if (path.startsWith('/productos/') && path.includes('/editar')) return 'Editar Producto'
   if (path === '/productos/nuevo') return 'Nuevo Producto'
   if (path.startsWith('/inventario/ajuste/')) return 'Ajuste de Stock'
+  if (path === '/clientes/nuevo') return 'Nuevo Cliente'
+  if (path.startsWith('/clientes/') && path.includes('/editar')) return 'Editar Cliente'
   return pageTitles[path] ?? 'Lubricentro E\' Manuel'
 }
 
@@ -94,39 +125,45 @@ export function AppLayout() {
           </div>
 
           {/* Nav */}
-          <nav className="flex-1 py-4 overflow-y-auto space-y-0.5 px-2">
-            <p className="text-[10px] font-semibold uppercase tracking-widest px-3 py-2" style={{ color: '#475569' }}>
-              Menú Principal
-            </p>
-            {navItems.map(({ to, label, icon: Icon, exact }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={exact}
-                className={({ isActive }) =>
-                  `relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
-                    isActive
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`
-                }
-                style={({ isActive }) => isActive ? {
-                  background: 'linear-gradient(90deg, rgba(14,165,233,0.18) 0%, rgba(14,165,233,0.06) 100%)',
-                } : {}}
-              >
-                {({ isActive }) => (
-                  <>
-                    {isActive && (
-                      <span
-                        className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full"
-                        style={{ background: '#0ea5e9' }}
-                      />
-                    )}
-                    <Icon className={`w-4 h-4 flex-shrink-0 transition-colors ${isActive ? 'text-accent-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
-                    {label}
-                  </>
-                )}
-              </NavLink>
+          <nav className="flex-1 py-3 overflow-y-auto px-2 space-y-4">
+            {navSections.map((section) => (
+              <div key={section.label}>
+                <p className="text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5" style={{ color: '#475569' }}>
+                  {section.label}
+                </p>
+                <div className="space-y-0.5">
+                  {section.items.map(({ to, label, icon: Icon, exact }: { to: string; label: string; icon: React.ComponentType<{ className?: string }>; exact?: boolean }) => (
+                    <NavLink
+                      key={to}
+                      to={to}
+                      end={exact}
+                      className={({ isActive }) =>
+                        `relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
+                          isActive
+                            ? 'text-white'
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                        }`
+                      }
+                      style={({ isActive }) => isActive ? {
+                        background: 'linear-gradient(90deg, rgba(14,165,233,0.18) 0%, rgba(14,165,233,0.06) 100%)',
+                      } : {}}
+                    >
+                      {({ isActive }) => (
+                        <>
+                          {isActive && (
+                            <span
+                              className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full"
+                              style={{ background: '#0ea5e9' }}
+                            />
+                          )}
+                          <Icon className={`w-4 h-4 flex-shrink-0 transition-colors ${isActive ? 'text-accent-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                          {label}
+                        </>
+                      )}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
             ))}
           </nav>
 
@@ -209,7 +246,7 @@ export function AppLayout() {
         }}
       >
         <div className="grid grid-cols-5">
-          {navItems.map(({ to, label, icon: Icon, exact }) => (
+          {mobileNavItems.map(({ to, label, icon: Icon, exact }) => (
             <NavLink
               key={to}
               to={to}
@@ -281,6 +318,46 @@ function LogOutIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+    </svg>
+  )
+}
+
+function CajaIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+    </svg>
+  )
+}
+
+function PosIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+  )
+}
+
+function ReceiptIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+    </svg>
+  )
+}
+
+function UsersIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
+  )
+}
+
+function CreditIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
     </svg>
   )
 }

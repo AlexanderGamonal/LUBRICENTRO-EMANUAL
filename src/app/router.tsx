@@ -9,6 +9,12 @@ import { InventarioPage } from '@/features/inventario/InventarioPage'
 import { AjusteStockPage } from '@/features/inventario/AjusteStockPage'
 import { BusquedaRapidaPage } from '@/features/busqueda/BusquedaRapidaPage'
 import { ImportacionPage } from '@/features/importacion/ImportacionPage'
+import CajaPage from '@/features/caja/CajaPage'
+import ClientesPage from '@/features/clientes/ClientesPage'
+import ClienteFormPage from '@/features/clientes/ClienteFormPage'
+import CreditosPage from '@/features/creditos/CreditosPage'
+import VentasPage from '@/features/ventas/VentasPage'
+import NuevaVentaPage from '@/features/ventas/NuevaVentaPage'
 
 export const router = createBrowserRouter([
   {
@@ -22,6 +28,31 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: '/', element: <DashboardPage /> },
+
+          // Ventas
+          { path: '/caja', element: <CajaPage /> },
+          { path: '/ventas/nueva', element: <NuevaVentaPage /> },
+          { path: '/ventas', element: <VentasPage /> },
+          { path: '/creditos', element: <CreditosPage /> },
+
+          // Clientes
+          { path: '/clientes', element: <ClientesPage /> },
+          {
+            path: '/clientes/nuevo',
+            element: (
+              <ProtectedRoute allowedRoles={['admin', 'superadmin', 'vendedor']} />
+            ),
+            children: [{ index: true, element: <ClienteFormPage /> }],
+          },
+          {
+            path: '/clientes/:id/editar',
+            element: (
+              <ProtectedRoute allowedRoles={['admin', 'superadmin', 'vendedor']} />
+            ),
+            children: [{ index: true, element: <ClienteFormPage /> }],
+          },
+
+          // Inventario
           { path: '/productos', element: <ProductosListPage /> },
           {
             path: '/productos/nuevo',
@@ -41,6 +72,7 @@ export const router = createBrowserRouter([
           { path: '/inventario/ajuste/:productoId', element: <AjusteStockPage /> },
           { path: '/busqueda', element: <BusquedaRapidaPage /> },
           { path: '/importacion', element: <ImportacionPage /> },
+
           { path: '*', element: <Navigate to="/" replace /> },
         ],
       },
