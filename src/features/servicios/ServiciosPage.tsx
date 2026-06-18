@@ -7,8 +7,12 @@ import { formatCurrency, formatDate } from '@/shared/utils/formatters'
 import { cn } from '@/shared/utils/cn'
 import type { Database } from '@/shared/types/database'
 
-type ServicioDetalle = Database['public']['Views']['vw_servicios_detalle']['Row']
 type EstadoFiltro = 'todos' | 'pendiente' | 'terminado' | 'anulado'
+
+type ServicioConJoin = Database['public']['Tables']['servicios']['Row'] & {
+  vehiculos: { placa: string; marca_vehiculo: string | null; modelo: string | null } | null
+  clientes:  { nombre: string; telefono: string | null } | null
+}
 
 function getDefaultDesde(): string {
   const d = new Date()
@@ -78,13 +82,13 @@ export default function ServiciosPage() {
   const [hasta, setHasta] = useState(getDefaultHasta)
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>('todos')
 
-  const { data: servicios, isLoading } = useQuery({
+  const { data: servicios, isLoading } = useQuery<ServicioConJoin[]>({
     queryKey: ['servicios', user?.sucursal_id, desde, hasta, estadoFiltro],
     queryFn: async () => {
       if (!user?.sucursal_id) return []
       let q = supabase
-        .from('vw_servicios_detalle')
-        .select('*')
+        .from('servicios')
+        .select('*, vehiculos(placa, marca_vehiculo, modelo), clientes(nombre, telefono)')
         .eq('sucursal_id', user.sucursal_id)
         .gte('fecha_servicio', desde)
         .lte('fecha_servicio', hasta)
@@ -98,7 +102,7 @@ export default function ServiciosPage() {
 
       const { data, error } = await q
       if (error) throw error
-      return (data ?? []) as ServicioDetalle[]
+      return (data ?? []) as unknown as ServicioConJoin[]
     },
     enabled: !!user?.sucursal_id,
   })
@@ -204,14 +208,14 @@ export default function ServiciosPage() {
                       {formatDate(s.fecha_servicio)}
                     </td>
                     <td className="px-4 py-3">
-                      {s.placa ? (
+                      {s.vehiculos?.placa ? (
                         <div>
                           <span className="bg-[#1F3864] text-white text-xs font-mono px-2 py-0.5 rounded">
-                            {s.placa}
+                            {s.vehiculos.placa}
                           </span>
-                          {(s.marca_vehiculo || s.modelo) && (
+                          {(s.vehiculos.marca_vehiculo || s.vehiculos.modelo) && (
                             <p className="text-xs text-gray-500 mt-0.5">
-                              {[s.marca_vehiculo, s.modelo].filter(Boolean).join(' ')}
+                              {[s.vehiculos.marca_vehiculo, s.vehiculos.modelo].filter(Boolean).join(' ')}
                             </p>
                           )}
                         </div>
@@ -220,7 +224,7 @@ export default function ServiciosPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
-                      {s.cliente_nombre ?? <span className="text-gray-400">—</span>}
+                      {s.clientes?.nombre ?? <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
                       {s.kilometraje != null
@@ -276,9 +280,9 @@ export default function ServiciosPage() {
             <div key={s.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  {s.placa && (
+                  {s.vehiculos?.placa && (
                     <span className="bg-[#1F3864] text-white text-xs font-mono px-2 py-0.5 rounded">
-                      {s.placa}
+                      {s.vehiculos.placa}
                     </span>
                   )}
                   <span className="text-xs text-gray-500">{formatDate(s.fecha_servicio)}</span>
@@ -293,12 +297,12 @@ export default function ServiciosPage() {
               </p>
 
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                {s.cliente_nombre && (
+                {s.clientes?.nombre && (
                   <span className="flex items-center gap-1">
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
-                    {s.cliente_nombre}
+                    {s.clientes.nombre}
                   </span>
                 )}
                 {s.kilometraje != null && (

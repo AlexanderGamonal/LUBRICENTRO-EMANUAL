@@ -4,7 +4,7 @@ import { supabase } from '@/shared/lib/supabase'
 import { formatCurrency, formatDate } from '@/shared/utils/formatters'
 import type { Database } from '@/shared/types/database'
 
-type ServicioDetalle = Database['public']['Views']['vw_servicios_detalle']['Row']
+type ServicioRow = Database['public']['Tables']['servicios']['Row']
 type MantenimientoRow = Database['public']['Tables']['mantenimientos_recomendados']['Row']
 type EstadoServicio = 'pendiente' | 'terminado' | 'anulado'
 
@@ -48,17 +48,17 @@ export default function VehiculoDetallePage() {
     enabled: !!id,
   })
 
-  const { data: servicios = [], isLoading: loadingServicios } = useQuery<ServicioDetalle[]>({
+  const { data: servicios = [], isLoading: loadingServicios } = useQuery<ServicioRow[]>({
     queryKey: ['servicios-vehiculo', id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('vw_servicios_detalle')
-        .select('*')
+        .from('servicios')
+        .select('id, fecha_servicio, kilometraje, descripcion, observaciones, estado, total, created_at')
         .eq('vehiculo_id', id!)
         .order('fecha_servicio', { ascending: false })
         .limit(50)
       if (error) throw error
-      return (data ?? []) as ServicioDetalle[]
+      return (data ?? []) as ServicioRow[]
     },
     enabled: !!id,
   })
