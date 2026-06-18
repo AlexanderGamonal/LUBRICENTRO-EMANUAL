@@ -7,7 +7,8 @@ import { useState } from 'react'
 import { cn } from '@/shared/utils/cn'
 import type { Database } from '@/shared/types/database'
 
-type GananciasRow = Database['public']['Views']['vw_ganancias_ventas']['Row']
+type GananciasVentasRow    = Database['public']['Views']['vw_ganancias_ventas']['Row']
+type GananciasServiciosRow = Database['public']['Views']['vw_ganancias_servicios']['Row']
 type Periodo = 'hoy' | 'semana' | 'mes'
 
 function fechaDesde(periodo: Periodo): string {
@@ -21,14 +22,45 @@ function fechaDesde(periodo: Periodo): string {
     d.setDate(1)
     d.setHours(0, 0, 0, 0)
   }
-  // Retorna fecha en formato YYYY-MM-DD
   return d.toISOString().split('T')[0]
+}
+
+const PERIODOS: { key: Periodo; label: string }[] = [
+  { key: 'hoy',    label: 'Hoy' },
+  { key: 'semana', label: 'Semana' },
+  { key: 'mes',    label: 'Mes' },
+]
+
+interface MetricCardProps {
+  label: string
+  value: string
+  sub: string
+  highlight?: boolean
+  color?: 'green' | 'yellow' | 'red' | 'default'
+}
+function MetricCard({ label, value, sub, highlight, color = 'default' }: MetricCardProps) {
+  const valueColor =
+    color === 'green'  ? 'text-green-700' :
+    color === 'yellow' ? 'text-yellow-600' :
+    color === 'red'    ? 'text-red-600' :
+    'text-[#1F3864]'
+  return (
+    <div className={cn(
+      'bg-white rounded-xl border shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md',
+      highlight ? 'border-l-4 border-green-500 border-gray-100' : 'border-gray-100',
+    )}>
+      <p className="text-xs sm:text-sm text-gray-500 mb-1">{label}</p>
+      <p className={cn('text-lg sm:text-2xl font-bold', valueColor)}>{value}</p>
+      <p className="text-[10px] sm:text-xs text-gray-400 mt-1">{sub}</p>
+    </div>
+  )
 }
 
 export function DashboardPage() {
   const { user } = useAuth()
   const [periodo, setPeriodo] = useState<Periodo>('mes')
 
+  /* ── Inventario ────────────────────────────────────────────── */
   const { data: stockBajo } = useQuery({
     queryKey: ['stock-bajo-count', user?.sucursal_id],
     queryFn: async () => {
@@ -57,8 +89,8 @@ export function DashboardPage() {
     enabled: !!user,
   })
 
-  // Feature 3: Ganancias por período usando vw_ganancias_ventas
-  const { data: ganancias, isLoading: loadingGanancias } = useQuery<GananciasRow[]>({
+  /* ── Rentabilidad ventas POS ───────────────────────────────── */
+  const { data: gananciasVentas, isLoading: loadingVentas } = useQuery<GananciasVentasRow[]>({
     queryKey: ['ganancias-ventas', user?.sucursal_id, periodo],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -67,24 +99,55 @@ export function DashboardPage() {
         .eq('sucursal_id', user!.sucursal_id)
         .gte('fecha', fechaDesde(periodo))
       if (error) throw error
-      return (data ?? []) as GananciasRow[]
+      return (data ?? []) as GananciasVentasRow[]
     },
     enabled: !!user,
+    retry: 1,
   })
 
-  const totalIngresos = ganancias?.reduce((s, r) => s + Number(r.ingresos), 0) ?? 0
-  const totalGanancia = ganancias?.reduce((s, r) => s + Number(r.ganancia), 0) ?? 0
-  const totalVentas   = ganancias?.reduce((s, r) => s + Number(r.total_ventas), 0) ?? 0
-  const margenPct     = totalIngresos > 0 ? (totalGanancia / totalIngresos) * 100 : 0
+  /* ── Rentabilidad servicios ────────────────────────────────── */
+  const { data: gananciasServicios, isLoading: loadingServicios } = useQuery<GananciasServiciosRow[]>({
+    queryKey: ['ganancias-servicios', user?.sucursal_id, periodo],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vw_ganancias_servicios')
+        .select('sucursal_id, fecha, ingresos, costo_real, ganancia, total_servicios, total_mano_obra')
+        .eq('sucursal_id', user!.sucursal_id)
+        .gte('fecha', fechaDesde(periodo))
+      if (error) throw error
+      return (data ?? []) as GananciasServiciosRow[]
+    },
+    enabled: !!user,
+    retry: 1,
+  })
+
+  /* ── Totales ventas ────────────────────────────────────────── */
+  const vIngresos  = gananciasVentas?.reduce((s, r) => s + Number(r.ingresos), 0)  ?? 0
+  const vGanancia  = gananciasVentas?.reduce((s, r) => s + Number(r.ganancia), 0)  ?? 0
+  const vCount     = gananciasVentas?.reduce((s, r) => s + Number(r.total_ventas), 0) ?? 0
+  const vMargen    = vIngresos > 0 ? (vGanancia / vIngresos) * 100 : 0
+
+  /* ── Totales servicios ─────────────────────────────────────── */
+  const sIngresos  = gananciasServicios?.reduce((s, r) => s + Number(r.ingresos), 0)       ?? 0
+  const sGanancia  = gananciasServicios?.reduce((s, r) => s + Number(r.ganancia), 0)       ?? 0
+  const sCount     = gananciasServicios?.reduce((s, r) => s + Number(r.total_servicios), 0) ?? 0
+  const sManoObra  = gananciasServicios?.reduce((s, r) => s + Number(r.total_mano_obra), 0) ?? 0
+  const sMargen    = sIngresos > 0 ? (sGanancia / sIngresos) * 100 : 0
+
+  /* ── Grand total ───────────────────────────────────────────── */
+  const totalIngresos = vIngresos + sIngresos
+  const totalGanancia = vGanancia + sGanancia
+  const totalMargen   = totalIngresos > 0 ? (totalGanancia / totalIngresos) * 100 : 0
 
   const hora = new Date().getHours()
   const saludo = hora < 12 ? 'Buenos días' : hora < 19 ? 'Buenas tardes' : 'Buenas noches'
 
-  const PERIODOS: { key: Periodo; label: string }[] = [
-    { key: 'hoy',    label: 'Hoy' },
-    { key: 'semana', label: 'Semana' },
-    { key: 'mes',    label: 'Mes' },
-  ]
+  function margenColor(pct: number, loading: boolean): 'green' | 'yellow' | 'red' | 'default' {
+    if (loading) return 'default'
+    if (pct >= 30) return 'green'
+    if (pct >= 10) return 'yellow'
+    return 'red'
+  }
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -95,9 +158,9 @@ export function DashboardPage() {
         <p className="text-gray-500 text-sm mt-1">Lubricentro E' Manuel — Sistema POS</p>
       </div>
 
-      {/* Sección: Rentabilidad de Ventas */}
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Rentabilidad de Ventas</h2>
+      {/* Selector de período (compartido) */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Rentabilidad</h2>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
           {PERIODOS.map(({ key, label }) => (
             <button
@@ -105,9 +168,7 @@ export function DashboardPage() {
               onClick={() => setPeriodo(key)}
               className={cn(
                 'px-3 py-1 text-xs rounded-md font-medium transition-colors',
-                periodo === key
-                  ? 'bg-white shadow text-[#1F3864]'
-                  : 'text-gray-500 hover:text-gray-700',
+                periodo === key ? 'bg-white shadow text-[#1F3864]' : 'text-gray-500 hover:text-gray-700',
               )}
             >
               {label}
@@ -116,40 +177,78 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
-          <p className="text-xs sm:text-sm text-gray-500 mb-1">Ingresos</p>
-          <p className="text-lg sm:text-2xl font-bold text-[#1F3864]">
-            {loadingGanancias ? '—' : formatCurrency(totalIngresos)}
-          </p>
-          <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
-            {loadingGanancias ? '' : `${totalVentas} ventas`}
-          </p>
+      {/* ── Resumen total (ventas + servicios) ──────────────── */}
+      {(vIngresos > 0 || sIngresos > 0) && (
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          <div className="col-span-3 bg-[#1F3864] rounded-xl px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-white/60 uppercase tracking-wide">Total recaudado</p>
+              <p className="text-xl font-bold text-white">{formatCurrency(totalIngresos)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-white/60 uppercase tracking-wide">Ganancia total</p>
+              <p className={cn('text-xl font-bold', totalGanancia >= 0 ? 'text-green-300' : 'text-red-300')}>
+                {formatCurrency(totalGanancia)}
+                <span className="text-sm font-normal ml-1 text-white/60">({totalMargen.toFixed(1)}%)</span>
+              </p>
+            </div>
+          </div>
         </div>
+      )}
 
-        <div className="bg-white rounded-xl border border-l-4 border-gray-100 border-l-green-500 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
-          <p className="text-xs sm:text-sm text-gray-500 mb-1">Ganancia</p>
-          <p className={`text-lg sm:text-2xl font-bold ${totalGanancia >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-            {loadingGanancias ? '—' : formatCurrency(totalGanancia)}
-          </p>
-          <p className="text-[10px] sm:text-xs text-gray-400 mt-1">ingreso – costo</p>
-        </div>
-
-        <div className="col-span-2 sm:col-span-1 bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
-          <p className="text-xs sm:text-sm text-gray-500 mb-1">Margen Promedio</p>
-          <p className={`text-2xl font-bold ${
-            margenPct >= 30 ? 'text-green-700' :
-            margenPct >= 10 ? 'text-yellow-600' :
-            loadingGanancias ? 'text-gray-900' :
-            'text-red-600'
-          }`}>
-            {loadingGanancias ? '—' : `${margenPct.toFixed(1)}%`}
-          </p>
-          <p className="text-[10px] sm:text-xs text-gray-400 mt-1">sobre precio de venta</p>
-        </div>
+      {/* ── Ventas POS ──────────────────────────────────────── */}
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+        Ventas POS
+        {vCount > 0 && <span className="ml-2 font-normal text-gray-400">{vCount} transacciones</span>}
+      </p>
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <MetricCard
+          label="Ingresos"
+          value={loadingVentas ? '—' : formatCurrency(vIngresos)}
+          sub={loadingVentas ? '' : `${vCount} ventas`}
+        />
+        <MetricCard
+          label="Ganancia"
+          value={loadingVentas ? '—' : formatCurrency(vGanancia)}
+          sub="ingreso – costo"
+          highlight
+          color={loadingVentas ? 'default' : vGanancia >= 0 ? 'green' : 'red'}
+        />
+        <MetricCard
+          label="Margen"
+          value={loadingVentas ? '—' : `${vMargen.toFixed(1)}%`}
+          sub="sobre precio venta"
+          color={margenColor(vMargen, loadingVentas)}
+        />
       </div>
 
-      {/* Sección: Inventario */}
+      {/* ── Servicios ───────────────────────────────────────── */}
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+        Servicios / Atenciones
+        {sCount > 0 && <span className="ml-2 font-normal text-gray-400">{sCount} atenciones</span>}
+      </p>
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        <MetricCard
+          label="Ingresos"
+          value={loadingServicios ? '—' : formatCurrency(sIngresos)}
+          sub={loadingServicios ? '' : `MO: ${formatCurrency(sManoObra)}`}
+        />
+        <MetricCard
+          label="Ganancia"
+          value={loadingServicios ? '—' : formatCurrency(sGanancia)}
+          sub="ingresos – costo productos"
+          highlight
+          color={loadingServicios ? 'default' : sGanancia >= 0 ? 'green' : 'red'}
+        />
+        <MetricCard
+          label="Margen"
+          value={loadingServicios ? '—' : `${sMargen.toFixed(1)}%`}
+          sub="sobre precio servicio"
+          color={margenColor(sMargen, loadingServicios)}
+        />
+      </div>
+
+      {/* ── Inventario ──────────────────────────────────────── */}
       <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Inventario</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
@@ -177,14 +276,14 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Accesos rápidos */}
+      {/* ── Accesos rápidos ─────────────────────────────────── */}
       <h2 className="text-base font-semibold text-gray-700 mb-3">Accesos rápidos</h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { to: '/busqueda', label: 'Búsqueda rápida', color: 'bg-blue-600', desc: 'Escanear o buscar' },
-          { to: '/productos/nuevo', label: 'Nuevo producto', color: 'bg-green-600', desc: 'Agregar al inventario' },
-          { to: '/inventario', label: 'Ver inventario', color: 'bg-purple-600', desc: 'Stock y alertas' },
-          { to: '/importacion', label: 'Importar Excel', color: 'bg-orange-500', desc: 'Carga masiva' },
+          { to: '/servicios/nuevo', label: 'Nueva Atención', color: 'bg-emerald-600', desc: 'Registrar servicio' },
+          { to: '/vender',          label: 'Vender',         color: 'bg-blue-600',    desc: 'Venta directa POS' },
+          { to: '/vehiculos',       label: 'Vehículos',      color: 'bg-[#1F3864]',   desc: 'Historial por placa' },
+          { to: '/inventario',      label: 'Inventario',     color: 'bg-purple-600',  desc: 'Stock y alertas' },
         ].map(({ to, label, color, desc }) => (
           <Link
             key={to}
@@ -197,7 +296,7 @@ export function DashboardPage() {
         ))}
       </div>
 
-      {stockBajo && stockBajo > 0 && (
+      {stockBajo != null && stockBajo > 0 && (
         <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between">
           <div>
             <p className="font-semibold text-red-800 text-sm">
@@ -205,10 +304,7 @@ export function DashboardPage() {
             </p>
             <p className="text-red-600 text-xs mt-0.5">Revisar y reponer para evitar quiebres de stock</p>
           </div>
-          <Link
-            to="/inventario"
-            className="text-sm font-medium text-red-700 hover:text-red-900 underline"
-          >
+          <Link to="/inventario" className="text-sm font-medium text-red-700 hover:text-red-900 underline">
             Ver alertas →
           </Link>
         </div>

@@ -675,6 +675,18 @@ export interface Database {
         }
         Relationships: []
       }
+      vw_ganancias_servicios: {
+        Row: {
+          sucursal_id: string
+          fecha: string
+          ingresos: number
+          costo_real: number
+          ganancia: number
+          total_servicios: number
+          total_mano_obra: number
+        }
+        Relationships: []
+      }
       vw_servicios_detalle: {
         Row: {
           id: string
