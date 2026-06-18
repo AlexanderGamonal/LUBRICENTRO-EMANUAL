@@ -131,33 +131,33 @@ export function InventarioPage() {
       {/* Tab: Resumen */}
       {tab === 'resumen' && (
         <div>
-          {/* Tarjetas resumen */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="card">
-              <p className="text-sm text-gray-500">Total Productos</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">
+          {/* Tarjetas resumen — 2 cols en móvil, 4 en desktop */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
+              <p className="text-xs sm:text-sm text-gray-500">Total Productos</p>
+              <p className="text-xl sm:text-2xl font-bold text-[#1F3864] mt-1">
                 {loadingValor ? '—' : totalProductos.toLocaleString('es-PE')}
               </p>
             </div>
-            <div className="card">
-              <p className="text-sm text-gray-500">Total Unidades</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
+              <p className="text-xs sm:text-sm text-gray-500">Total Unidades</p>
+              <p className="text-xl sm:text-2xl font-bold text-[#1F3864] mt-1">
                 {loadingValor ? '—' : totalUnidades.toLocaleString('es-PE')}
               </p>
             </div>
-            <div className="card">
-              <p className="text-sm text-gray-500">Valor Inventario (Venta)</p>
-              <p className="text-3xl font-bold text-primary-700 mt-1">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
+              <p className="text-xs sm:text-sm text-gray-500">Valor Inventario</p>
+              <p className="text-lg sm:text-2xl font-bold text-[#1F3864] mt-1">
                 {loadingValor ? '—' : formatCurrency(totalValorVenta)}
               </p>
             </div>
-            <div className="card border-l-4 border-l-green-500">
-              <p className="text-sm text-gray-500">Utilidad Potencial</p>
-              <p className="text-3xl font-bold text-green-700 mt-1">
+            <div className="bg-white rounded-xl border border-l-4 border-gray-100 border-l-green-500 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
+              <p className="text-xs sm:text-sm text-gray-500">Utilidad Potencial</p>
+              <p className="text-lg sm:text-2xl font-bold text-green-700 mt-1">
                 {loadingValor ? '—' : formatCurrency(totalUtilidad)}
               </p>
-              <p className="text-xs text-gray-400 mt-1">
-                {loadingValor ? '' : `Margen ${margenPct.toFixed(1)}% sobre venta`}
+              <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
+                {loadingValor ? '' : `Margen ${margenPct.toFixed(1)}%`}
               </p>
             </div>
           </div>

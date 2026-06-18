@@ -88,8 +88,8 @@ export function DashboardPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-[#1F3864]">
           {saludo}, {user?.nombre?.split(' ')[0]}
         </h1>
         <p className="text-gray-500 text-sm mt-1">Lubricentro E' Manuel — Sistema POS</p>
@@ -97,7 +97,7 @@ export function DashboardPage() {
 
       {/* Sección: Rentabilidad de Ventas */}
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-base font-semibold text-gray-700">Rentabilidad de Ventas</h2>
+        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Rentabilidad de Ventas</h2>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
           {PERIODOS.map(({ key, label }) => (
             <button
@@ -106,7 +106,7 @@ export function DashboardPage() {
               className={cn(
                 'px-3 py-1 text-xs rounded-md font-medium transition-colors',
                 periodo === key
-                  ? 'bg-white shadow text-primary-700'
+                  ? 'bg-white shadow text-[#1F3864]'
                   : 'text-gray-500 hover:text-gray-700',
               )}
             >
@@ -116,28 +116,28 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <div className="card">
-          <p className="text-sm text-gray-500 mb-1">Ingresos por Ventas</p>
-          <p className="text-3xl font-bold text-primary-700">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
+          <p className="text-xs sm:text-sm text-gray-500 mb-1">Ingresos</p>
+          <p className="text-lg sm:text-2xl font-bold text-[#1F3864]">
             {loadingGanancias ? '—' : formatCurrency(totalIngresos)}
           </p>
-          <p className="text-xs text-gray-400 mt-1">
-            {loadingGanancias ? '' : `${totalVentas} venta${totalVentas !== 1 ? 's' : ''} emitidas`}
+          <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
+            {loadingGanancias ? '' : `${totalVentas} ventas`}
           </p>
         </div>
 
-        <div className="card border-l-4 border-l-green-500">
-          <p className="text-sm text-gray-500 mb-1">Ganancia Estimada</p>
-          <p className={`text-3xl font-bold ${totalGanancia >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+        <div className="bg-white rounded-xl border border-l-4 border-gray-100 border-l-green-500 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
+          <p className="text-xs sm:text-sm text-gray-500 mb-1">Ganancia</p>
+          <p className={`text-lg sm:text-2xl font-bold ${totalGanancia >= 0 ? 'text-green-700' : 'text-red-600'}`}>
             {loadingGanancias ? '—' : formatCurrency(totalGanancia)}
           </p>
-          <p className="text-xs text-gray-400 mt-1">ingresos – costo de productos</p>
+          <p className="text-[10px] sm:text-xs text-gray-400 mt-1">ingreso – costo</p>
         </div>
 
-        <div className="card">
-          <p className="text-sm text-gray-500 mb-1">Margen Promedio</p>
-          <p className={`text-3xl font-bold ${
+        <div className="col-span-2 sm:col-span-1 bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
+          <p className="text-xs sm:text-sm text-gray-500 mb-1">Margen Promedio</p>
+          <p className={`text-2xl font-bold ${
             margenPct >= 30 ? 'text-green-700' :
             margenPct >= 10 ? 'text-yellow-600' :
             loadingGanancias ? 'text-gray-900' :
@@ -145,35 +145,35 @@ export function DashboardPage() {
           }`}>
             {loadingGanancias ? '—' : `${margenPct.toFixed(1)}%`}
           </p>
-          <p className="text-xs text-gray-400 mt-1">sobre precio de venta</p>
+          <p className="text-[10px] sm:text-xs text-gray-400 mt-1">sobre precio de venta</p>
         </div>
       </div>
 
       {/* Sección: Inventario */}
-      <h2 className="text-base font-semibold text-gray-700 mb-3">Inventario</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <div className="card">
-          <p className="text-sm text-gray-500 mb-1">Productos activos</p>
-          <p className="text-3xl font-bold text-primary-700">
+      <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Inventario</h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
+          <p className="text-xs sm:text-sm text-gray-500 mb-1">Productos activos</p>
+          <p className="text-xl sm:text-2xl font-bold text-[#1F3864]">
             {valorInventario?.productos ?? '—'}
           </p>
-          <p className="text-xs text-gray-400 mt-1">{valorInventario?.unidades ?? '—'} unidades en total</p>
+          <p className="text-[10px] sm:text-xs text-gray-400 mt-1">{valorInventario?.unidades ?? '—'} unidades</p>
         </div>
 
-        <div className={`card ${(stockBajo ?? 0) > 0 ? 'border-red-200 bg-red-50' : ''}`}>
-          <p className="text-sm text-gray-500 mb-1">Stock bajo / agotado</p>
-          <p className={`text-3xl font-bold ${(stockBajo ?? 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+        <div className={`bg-white rounded-xl border shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md ${(stockBajo ?? 0) > 0 ? 'border-red-200 bg-red-50' : 'border-gray-100'}`}>
+          <p className="text-xs sm:text-sm text-gray-500 mb-1">Stock bajo</p>
+          <p className={`text-xl sm:text-2xl font-bold ${(stockBajo ?? 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
             {stockBajo ?? '—'}
           </p>
-          <p className="text-xs text-gray-400 mt-1">productos bajo el mínimo</p>
+          <p className="text-[10px] sm:text-xs text-gray-400 mt-1">bajo el mínimo</p>
         </div>
 
-        <div className="card">
-          <p className="text-sm text-gray-500 mb-1">Valor de inventario</p>
-          <p className="text-3xl font-bold text-primary-700">
+        <div className="col-span-2 sm:col-span-1 bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
+          <p className="text-xs sm:text-sm text-gray-500 mb-1">Valor inventario</p>
+          <p className="text-lg sm:text-2xl font-bold text-[#1F3864]">
             {valorInventario ? formatCurrency(valorInventario.valor) : '—'}
           </p>
-          <p className="text-xs text-gray-400 mt-1">precio venta total</p>
+          <p className="text-[10px] sm:text-xs text-gray-400 mt-1">precio venta total</p>
         </div>
       </div>
 
