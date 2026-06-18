@@ -27,13 +27,12 @@ const navSections = [
   },
 ]
 
-// Flat list for mobile bottom nav (most used 5)
+// 4 fixed items for mobile bottom bar
 const mobileNavItems = [
   { to: '/', label: 'Inicio', icon: HomeIcon, exact: true },
   { to: '/ventas/nueva', label: 'Vender', icon: PosIcon },
+  { to: '/caja', label: 'Caja', icon: CajaIcon },
   { to: '/busqueda', label: 'Buscar', icon: SearchIcon },
-  { to: '/inventario', label: 'Inventario', icon: ChartIcon },
-  { to: '/clientes', label: 'Clientes', icon: UsersIcon },
 ]
 
 const pageTitles: Record<string, string> = {
@@ -72,9 +71,16 @@ function useClock() {
 export function AppLayout() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const { isOnline } = useOnlineStatus()
   const pageTitle = usePageTitle()
   const time = useClock()
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
+
+  // Close drawer on route change
+  useEffect(() => {
+    setShowMobileMenu(false)
+  }, [location.pathname])
 
   const initials = user?.nombre
     ? user.nombre.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
@@ -240,7 +246,7 @@ export function AppLayout() {
       {/* ── Bottom Nav (Mobile) ───────────────── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200"
         style={{
-          background: 'rgba(255,255,255,0.95)',
+          background: 'rgba(255,255,255,0.97)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
         }}
@@ -253,22 +259,125 @@ export function AppLayout() {
               end={exact}
               className={({ isActive }) =>
                 `flex flex-col items-center py-2.5 px-1 text-[10px] font-medium transition-colors ${
-                  isActive ? 'text-accent-600' : 'text-gray-400'
+                  isActive ? 'text-[#1F3864]' : 'text-gray-400'
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  <div className={`p-1.5 rounded-lg transition-colors ${isActive ? 'bg-accent-50' : ''}`}>
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-accent-600' : 'text-gray-400'}`} />
+                  <div className={`p-1.5 rounded-lg transition-colors ${isActive ? 'bg-[#1F3864]/10' : ''}`}>
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-[#1F3864]' : 'text-gray-400'}`} />
                   </div>
                   <span className="truncate mt-0.5">{label}</span>
                 </>
               )}
             </NavLink>
           ))}
+
+          {/* "Más" button */}
+          <button
+            onClick={() => setShowMobileMenu(true)}
+            className={`flex flex-col items-center py-2.5 px-1 text-[10px] font-medium transition-colors ${
+              showMobileMenu ? 'text-[#1F3864]' : 'text-gray-400'
+            }`}
+          >
+            <div className={`p-1.5 rounded-lg transition-colors ${showMobileMenu ? 'bg-[#1F3864]/10' : ''}`}>
+              <GridIcon className={`w-5 h-5 ${showMobileMenu ? 'text-[#1F3864]' : 'text-gray-400'}`} />
+            </div>
+            <span className="mt-0.5">Más</span>
+          </button>
         </div>
       </nav>
+
+      {/* ── Mobile Full Menu Drawer ───────────── */}
+      {showMobileMenu && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="md:hidden fixed inset-0 z-50 bg-black/40"
+            style={{ backdropFilter: 'blur(2px)' }}
+            onClick={() => setShowMobileMenu(false)}
+          />
+
+          {/* Drawer */}
+          <div
+            className="md:hidden fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl overflow-hidden"
+            style={{
+              background: '#0f172a',
+              boxShadow: '0 -8px 32px rgba(0,0,0,0.4)',
+              maxHeight: '80vh',
+            }}
+          >
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-white/20" />
+            </div>
+
+            {/* User info */}
+            <div className="px-5 py-3 flex items-center gap-3 border-b border-white/5">
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white"
+                style={{ background: 'linear-gradient(135deg, #0ea5e9, #1F3864)' }}
+              >
+                {initials}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{user?.nombre}</p>
+                <p className="text-xs text-slate-400">{formatRolUsuario(user?.rol ?? '')}</p>
+              </div>
+              <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+            </div>
+
+            {/* Nav sections */}
+            <div className="overflow-y-auto px-3 py-3 space-y-4" style={{ maxHeight: 'calc(80vh - 130px)' }}>
+              {navSections.map((section) => (
+                <div key={section.label}>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest px-3 py-1 text-slate-500">
+                    {section.label}
+                  </p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {section.items.map(({ to, label, icon: Icon, exact }: { to: string; label: string; icon: React.ComponentType<{ className?: string }>; exact?: boolean }) => (
+                      <NavLink
+                        key={to}
+                        to={to}
+                        end={exact}
+                        className={({ isActive }) =>
+                          `flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                            isActive
+                              ? 'text-white'
+                              : 'text-slate-400 hover:text-white hover:bg-white/5'
+                          }`
+                        }
+                        style={({ isActive }) => isActive ? {
+                          background: 'linear-gradient(90deg, rgba(14,165,233,0.2) 0%, rgba(14,165,233,0.08) 100%)',
+                        } : {}}
+                      >
+                        {({ isActive }) => (
+                          <>
+                            <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#0ea5e9]' : 'text-slate-500'}`} />
+                            {label}
+                          </>
+                        )}
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Sign out */}
+            <div className="px-4 py-3 border-t border-white/5">
+              <button
+                onClick={handleSignOut}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all"
+              >
+                <LogOutIcon className="w-4 h-4" />
+                Cerrar sesión
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -358,6 +467,14 @@ function CreditIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+  )
+}
+
+function GridIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
     </svg>
   )
 }
