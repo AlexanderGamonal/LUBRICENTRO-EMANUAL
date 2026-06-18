@@ -1,9 +1,11 @@
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number | null | undefined): string {
+  const n = Number(amount)
+  if (isNaN(n)) return 'S/ —'
   return new Intl.NumberFormat('es-PE', {
     style: 'currency',
     currency: 'PEN',
     minimumFractionDigits: 2,
-  }).format(amount)
+  }).format(n)
 }
 
 export function formatDate(date: string | Date): string {

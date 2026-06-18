@@ -274,10 +274,13 @@ export default function NuevoServicioPage() {
     )
   }
 
+  const [montoServicio, setMontoServicio] = useState<number>(0)
+
   const cartTotal = cartItems.reduce(
     (sum, item) => sum + item.cantidad * item.precio_unitario,
     0
   )
+  const totalFinal = cartTotal + montoServicio
 
   const onSubmit = handleSubmit(async (values) => {
     if (!vehiculoSeleccionado || !user) return
@@ -296,6 +299,7 @@ export default function NuevoServicioPage() {
         p_kilometraje: values.kilometraje ?? null,
         p_observaciones: values.observaciones || null,
         p_cliente_id: vehiculoSeleccionado.cliente_id ?? null,
+        p_monto_servicio: montoServicio,
       })
 
       if (error) throw error
@@ -665,12 +669,40 @@ export default function NuevoServicioPage() {
                 </div>
               )}
 
+              {/* Mano de obra / cobro por servicio */}
+              <div className="border-t border-gray-100 pt-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-sm font-medium text-gray-600">Mano de obra / servicio</label>
+                  <span className="text-xs text-gray-400">adicional a productos</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500 font-medium">S/</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.50}
+                    value={montoServicio}
+                    onChange={(e) => setMontoServicio(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="input-field py-1.5 text-sm flex-1"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
               {/* Total */}
-              <div className="border-t border-gray-100 pt-3 flex items-center justify-between">
-                <span className="text-sm text-gray-500 font-medium">Total</span>
-                <span className="text-2xl font-bold text-[#1F3864]">
-                  {formatCurrency(cartTotal)}
-                </span>
+              <div className="border-t border-gray-100 pt-3 space-y-1">
+                {montoServicio > 0 && (
+                  <div className="flex items-center justify-between text-xs text-gray-400">
+                    <span>Productos</span>
+                    <span>{formatCurrency(cartTotal)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600 font-semibold">Total a cobrar</span>
+                  <span className="text-2xl font-bold text-[#1F3864]">
+                    {formatCurrency(totalFinal)}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

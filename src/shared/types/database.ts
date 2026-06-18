@@ -248,6 +248,7 @@ export interface Database {
           estado: EstadoServicio
           fecha_servicio: string
           total: number
+          monto_servicio: number
           created_at: string
           updated_at: string
         }
@@ -262,6 +263,7 @@ export interface Database {
           estado?: EstadoServicio
           fecha_servicio?: string
           total?: number
+          monto_servicio?: number
         }
         Update: {
           vehiculo_id?: string | null
@@ -272,6 +274,7 @@ export interface Database {
           estado?: EstadoServicio
           fecha_servicio?: string
           total?: number
+          monto_servicio?: number
         }
         Relationships: []
       }
@@ -752,6 +755,7 @@ export interface Database {
           p_kilometraje?: number | null
           p_observaciones?: string | null
           p_cliente_id?: string | null
+          p_monto_servicio?: number
         }
         Returns: Json
       }

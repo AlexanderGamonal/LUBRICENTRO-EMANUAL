@@ -52,10 +52,28 @@ export default function CajaPage() {
         .eq('estado', 'emitida')
       if (error) throw error
       const count = data?.length ?? 0
-      const total = data?.reduce((sum, v) => sum + (v.total ?? 0), 0) ?? 0
+      const total = data?.reduce((sum, v) => sum + Number(v.total ?? 0), 0) ?? 0
       return { count, total }
     },
     enabled: !!caja?.id,
+  })
+
+  const { data: serviciosResumen, isLoading: loadingServicios } = useQuery<VentasResumen>({
+    queryKey: ['servicios-caja-dia', caja?.sucursal_id, caja?.fecha],
+    queryFn: async () => {
+      if (!caja) return { count: 0, total: 0 }
+      const { data, error } = await supabase
+        .from('servicios')
+        .select('total')
+        .eq('sucursal_id', caja.sucursal_id)
+        .eq('fecha_servicio', caja.fecha)
+        .eq('estado', 'terminado')
+      if (error) throw error
+      const count = data?.length ?? 0
+      const total = data?.reduce((sum, s) => sum + Number(s.total ?? 0), 0) ?? 0
+      return { count, total }
+    },
+    enabled: !!caja,
   })
 
   async function handleAbrirCaja() {
@@ -207,25 +225,43 @@ export default function CajaPage() {
               </div>
             </div>
 
-            {/* Resumen de ventas */}
+            {/* Resumen del turno */}
             <div className="border-t border-gray-100 pt-4 mt-4">
-              <h3 className="text-sm font-semibold text-gray-600 mb-3">Resumen de ventas del turno</h3>
-              {loadingVentas ? (
-                <div className="flex gap-4">
-                  <div className="h-12 flex-1 bg-gray-100 rounded animate-pulse" />
-                  <div className="h-12 flex-1 bg-gray-100 rounded animate-pulse" />
+              <h3 className="text-sm font-semibold text-gray-600 mb-3">Resumen del turno</h3>
+              {(loadingVentas || loadingServicios) ? (
+                <div className="space-y-2">
+                  <div className="h-12 bg-gray-100 rounded animate-pulse" />
+                  <div className="h-12 bg-gray-100 rounded animate-pulse" />
+                  <div className="h-14 bg-gray-100 rounded animate-pulse" />
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-sky-50 rounded-lg p-4 text-center">
-                    <p className="text-3xl font-bold text-sky-600">{ventasResumen?.count ?? 0}</p>
-                    <p className="text-xs text-gray-500 mt-1">Ventas emitidas</p>
-                  </div>
-                  <div className="bg-[#1F3864]/5 rounded-lg p-4 text-center">
-                    <p className="text-xl font-bold text-[#1F3864]">
+                <div className="space-y-2">
+                  {/* Ventas POS */}
+                  <div className="flex items-center justify-between px-4 py-3 bg-sky-50 rounded-lg">
+                    <div>
+                      <p className="text-sm font-semibold text-sky-700">Ventas POS</p>
+                      <p className="text-xs text-gray-400">{ventasResumen?.count ?? 0} transacciones</p>
+                    </div>
+                    <p className="text-lg font-bold text-sky-700">
                       {formatCurrency(ventasResumen?.total ?? 0)}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">Total recaudado</p>
+                  </div>
+                  {/* Servicios */}
+                  <div className="flex items-center justify-between px-4 py-3 bg-emerald-50 rounded-lg">
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-700">Servicios / Atenciones</p>
+                      <p className="text-xs text-gray-400">{serviciosResumen?.count ?? 0} atenciones</p>
+                    </div>
+                    <p className="text-lg font-bold text-emerald-700">
+                      {formatCurrency(serviciosResumen?.total ?? 0)}
+                    </p>
+                  </div>
+                  {/* Total */}
+                  <div className="flex items-center justify-between px-4 py-3 bg-[#1F3864] rounded-lg">
+                    <p className="text-sm font-semibold text-white">Total recaudado</p>
+                    <p className="text-xl font-bold text-white">
+                      {formatCurrency((ventasResumen?.total ?? 0) + (serviciosResumen?.total ?? 0))}
+                    </p>
                   </div>
                 </div>
               )}
@@ -275,30 +311,33 @@ export default function CajaPage() {
                 </div>
 
                 {/* Expected vs real preview */}
-                <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Apertura:</span>
-                    <span className="font-medium">{formatCurrency(caja.monto_apertura)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Ventas del turno:</span>
-                    <span className="font-medium">{formatCurrency(ventasResumen?.total ?? 0)}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-gray-200 pt-1 mt-1">
-                    <span className="text-gray-700 font-semibold">Diferencia:</span>
-                    <span
-                      className={`font-bold ${
-                        montoReal - (caja.monto_apertura + (ventasResumen?.total ?? 0)) >= 0
-                          ? 'text-green-600'
-                          : 'text-red-600'
-                      }`}
-                    >
-                      {formatCurrency(
-                        montoReal - (caja.monto_apertura + (ventasResumen?.total ?? 0))
-                      )}
-                    </span>
-                  </div>
-                </div>
+                {(() => {
+                  const totalTurno = (ventasResumen?.total ?? 0) + (serviciosResumen?.total ?? 0)
+                  const esperado = Number(caja.monto_apertura) + totalTurno
+                  const diferencia = montoReal - esperado
+                  return (
+                    <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Apertura:</span>
+                        <span className="font-medium">{formatCurrency(caja.monto_apertura)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Ventas POS:</span>
+                        <span className="font-medium">{formatCurrency(ventasResumen?.total ?? 0)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Servicios:</span>
+                        <span className="font-medium">{formatCurrency(serviciosResumen?.total ?? 0)}</span>
+                      </div>
+                      <div className="flex justify-between border-t border-gray-200 pt-1 mt-1">
+                        <span className="text-gray-700 font-semibold">Diferencia:</span>
+                        <span className={`font-bold ${diferencia >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(diferencia)}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 <div className="flex gap-3 pt-2">
                   <button
