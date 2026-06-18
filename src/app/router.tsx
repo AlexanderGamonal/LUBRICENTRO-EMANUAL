@@ -17,7 +17,9 @@ import VentasPage from '@/features/ventas/VentasPage'
 import NuevaVentaPage from '@/features/ventas/NuevaVentaPage'
 import VehiculosPage from '@/features/vehiculos/VehiculosPage'
 import VehiculoFormPage from '@/features/vehiculos/VehiculoFormPage'
-// VehiculoDetallePage, ServiciosPage, NuevoServicioPage — WIP (completando)
+import VehiculoDetallePage from '@/features/vehiculos/VehiculoDetallePage'
+import ServiciosPage from '@/features/servicios/ServiciosPage'
+import NuevoServicioPage from '@/features/servicios/NuevoServicioPage'
 
 export const router = createBrowserRouter([
   {
@@ -54,8 +56,12 @@ export const router = createBrowserRouter([
           // Vehículos
           { path: '/vehiculos', element: <VehiculosPage /> },
           { path: '/vehiculos/nuevo', element: <VehiculoFormPage /> },
+          { path: '/vehiculos/:id', element: <VehiculoDetallePage /> },
           { path: '/vehiculos/:id/editar', element: <VehiculoFormPage /> },
-          // /vehiculos/:id y /servicios/* — WIP (completando)
+
+          // Servicios / Atenciones
+          { path: '/servicios', element: <ServiciosPage /> },
+          { path: '/servicios/nuevo', element: <NuevoServicioPage /> },
 
           // Inventario
           { path: '/productos', element: <ProductosListPage /> },
