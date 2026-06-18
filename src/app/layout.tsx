@@ -16,6 +16,14 @@ const navSections = [
     ],
   },
   {
+    label: 'Servicios',
+    items: [
+      { to: '/servicios/nuevo', label: 'Nueva Atención', icon: WrenchIcon },
+      { to: '/servicios', label: 'Historial', icon: ClipboardIcon },
+      { to: '/vehiculos', label: 'Vehículos', icon: CarIcon },
+    ],
+  },
+  {
     label: 'Inventario',
     items: [
       { to: '/', label: 'Dashboard', icon: HomeIcon, exact: true },
@@ -42,6 +50,9 @@ const pageTitles: Record<string, string> = {
   '/ventas/nueva': 'Nueva Venta',
   '/clientes': 'Clientes',
   '/creditos': 'Créditos',
+  '/vehiculos': 'Vehículos',
+  '/servicios': 'Servicios / Atenciones',
+  '/servicios/nuevo': 'Nueva Atención',
   '/productos': 'Productos',
   '/inventario': 'Inventario',
   '/busqueda': 'Búsqueda Rápida',
@@ -56,6 +67,9 @@ function usePageTitle() {
   if (path.startsWith('/inventario/ajuste/')) return 'Ajuste de Stock'
   if (path === '/clientes/nuevo') return 'Nuevo Cliente'
   if (path.startsWith('/clientes/') && path.includes('/editar')) return 'Editar Cliente'
+  if (path === '/vehiculos/nuevo') return 'Nuevo Vehículo'
+  if (path.startsWith('/vehiculos/') && path.includes('/editar')) return 'Editar Vehículo'
+  if (path.startsWith('/vehiculos/')) return 'Detalle del Vehículo'
   return pageTitles[path] ?? 'Lubricentro E\' Manuel'
 }
 
@@ -475,6 +489,31 @@ function GridIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  )
+}
+
+function WrenchIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+    </svg>
+  )
+}
+
+function ClipboardIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+    </svg>
+  )
+}
+
+function CarIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l3 1h4m2-5h4l2-5H9.5M13 16l3 1h1" />
     </svg>
   )
 }

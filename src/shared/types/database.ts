@@ -235,6 +235,97 @@ export interface Database {
         }
         Relationships: []
       }
+      servicios: {
+        Row: {
+          id: string
+          sucursal_id: string
+          vehiculo_id: string | null
+          cliente_id: string | null
+          usuario_id: string
+          kilometraje: number | null
+          descripcion: string
+          observaciones: string | null
+          estado: EstadoServicio
+          fecha_servicio: string
+          total: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          sucursal_id: string
+          vehiculo_id?: string | null
+          cliente_id?: string | null
+          usuario_id: string
+          kilometraje?: number | null
+          descripcion: string
+          observaciones?: string | null
+          estado?: EstadoServicio
+          fecha_servicio?: string
+          total?: number
+        }
+        Update: {
+          vehiculo_id?: string | null
+          cliente_id?: string | null
+          kilometraje?: number | null
+          descripcion?: string
+          observaciones?: string | null
+          estado?: EstadoServicio
+          fecha_servicio?: string
+          total?: number
+        }
+        Relationships: []
+      }
+      servicio_productos: {
+        Row: {
+          id: string
+          sucursal_id: string
+          servicio_id: string
+          producto_id: string
+          cantidad: number
+          precio_unitario: number
+          subtotal: number
+          created_at: string
+        }
+        Insert: {
+          sucursal_id: string
+          servicio_id: string
+          producto_id: string
+          cantidad: number
+          precio_unitario: number
+          subtotal: number
+        }
+        Update: never
+        Relationships: []
+      }
+      mantenimientos_recomendados: {
+        Row: {
+          id: string
+          marca_vehiculo: string
+          modelo: string | null
+          tipo_servicio: string
+          descripcion: string
+          intervalo_km: number | null
+          intervalo_dias: number | null
+          created_at: string
+        }
+        Insert: {
+          marca_vehiculo: string
+          modelo?: string | null
+          tipo_servicio: string
+          descripcion: string
+          intervalo_km?: number | null
+          intervalo_dias?: number | null
+        }
+        Update: {
+          marca_vehiculo?: string
+          modelo?: string | null
+          tipo_servicio?: string
+          descripcion?: string
+          intervalo_km?: number | null
+          intervalo_dias?: number | null
+        }
+        Relationships: []
+      }
       vehiculos: {
         Row: {
           id: string
@@ -578,6 +669,31 @@ export interface Database {
           costo_real: number
           ganancia: number
           total_ventas: number
+        }
+        Relationships: []
+      }
+      vw_servicios_detalle: {
+        Row: {
+          id: string
+          sucursal_id: string
+          vehiculo_id: string | null
+          cliente_id: string | null
+          usuario_id: string
+          kilometraje: number | null
+          descripcion: string
+          observaciones: string | null
+          estado: EstadoServicio
+          fecha_servicio: string
+          total: number
+          created_at: string
+          updated_at: string
+          placa: string | null
+          marca_vehiculo: string | null
+          modelo: string | null
+          anio: number | null
+          cliente_nombre: string | null
+          cliente_telefono: string | null
+          usuario_nombre: string | null
         }
         Relationships: []
       }

@@ -15,6 +15,9 @@ import ClienteFormPage from '@/features/clientes/ClienteFormPage'
 import CreditosPage from '@/features/creditos/CreditosPage'
 import VentasPage from '@/features/ventas/VentasPage'
 import NuevaVentaPage from '@/features/ventas/NuevaVentaPage'
+import VehiculosPage from '@/features/vehiculos/VehiculosPage'
+import VehiculoFormPage from '@/features/vehiculos/VehiculoFormPage'
+// VehiculoDetallePage, ServiciosPage, NuevoServicioPage — WIP (completando)
 
 export const router = createBrowserRouter([
   {
@@ -39,33 +42,31 @@ export const router = createBrowserRouter([
           { path: '/clientes', element: <ClientesPage /> },
           {
             path: '/clientes/nuevo',
-            element: (
-              <ProtectedRoute allowedRoles={['admin', 'superadmin', 'vendedor']} />
-            ),
+            element: <ProtectedRoute allowedRoles={['admin', 'superadmin', 'vendedor']} />,
             children: [{ index: true, element: <ClienteFormPage /> }],
           },
           {
             path: '/clientes/:id/editar',
-            element: (
-              <ProtectedRoute allowedRoles={['admin', 'superadmin', 'vendedor']} />
-            ),
+            element: <ProtectedRoute allowedRoles={['admin', 'superadmin', 'vendedor']} />,
             children: [{ index: true, element: <ClienteFormPage /> }],
           },
+
+          // Vehículos
+          { path: '/vehiculos', element: <VehiculosPage /> },
+          { path: '/vehiculos/nuevo', element: <VehiculoFormPage /> },
+          { path: '/vehiculos/:id/editar', element: <VehiculoFormPage /> },
+          // /vehiculos/:id y /servicios/* — WIP (completando)
 
           // Inventario
           { path: '/productos', element: <ProductosListPage /> },
           {
             path: '/productos/nuevo',
-            element: (
-              <ProtectedRoute allowedRoles={['admin', 'superadmin', 'almacen']} />
-            ),
+            element: <ProtectedRoute allowedRoles={['admin', 'superadmin', 'almacen']} />,
             children: [{ index: true, element: <ProductoFormPage mode="create" /> }],
           },
           {
             path: '/productos/:id/editar',
-            element: (
-              <ProtectedRoute allowedRoles={['admin', 'superadmin', 'almacen']} />
-            ),
+            element: <ProtectedRoute allowedRoles={['admin', 'superadmin', 'almacen']} />,
             children: [{ index: true, element: <ProductoFormPage mode="edit" /> }],
           },
           { path: '/inventario', element: <InventarioPage /> },
