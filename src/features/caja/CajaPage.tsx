@@ -59,6 +59,7 @@ export default function CajaPage() {
     data: ventasResumen,
     isLoading: loadingVentas,
     isError: errorVentas,
+    refetch: refetchVentas,
   } = useQuery<Resumen>({
     queryKey: ['ventas-caja', caja?.id],
     queryFn: async () => {
@@ -75,7 +76,7 @@ export default function CajaPage() {
       }
     },
     enabled: !!caja?.id,
-    retry: 0,
+    retry: 1,
     staleTime: 30_000,
   })
 
@@ -84,6 +85,7 @@ export default function CajaPage() {
     data: serviciosResumen,
     isLoading: loadingServicios,
     isError: errorServicios,
+    refetch: refetchServicios,
   } = useQuery<Resumen>({
     queryKey: ['servicios-caja-dia', caja?.sucursal_id, caja?.fecha],
     queryFn: async () => {
@@ -101,7 +103,7 @@ export default function CajaPage() {
       }
     },
     enabled: !!caja,
-    retry: 0,
+    retry: 1,
     staleTime: 30_000,
   })
 
@@ -311,6 +313,16 @@ export default function CajaPage() {
                       <div className="h-12 bg-gray-100 rounded animate-pulse" />
                       <div className="h-14 bg-gray-100 rounded animate-pulse" />
                     </div>
+                  ) : (errorVentas && errorServicios) ? (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-red-600 mb-3">No se pudo cargar el resumen</p>
+                      <button
+                        onClick={() => { refetchVentas(); refetchServicios() }}
+                        className="px-4 py-2 text-sm font-medium text-white bg-[#1F3864] rounded-lg hover:opacity-90"
+                      >
+                        Reintentar
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-2">
                       {/* Ventas POS */}
@@ -319,7 +331,7 @@ export default function CajaPage() {
                           <p className="text-sm font-semibold text-sky-700">Ventas POS</p>
                           <p className="text-xs text-gray-400">
                             {errorVentas ? (
-                              <span className="text-red-500">Error al cargar</span>
+                              <button onClick={() => refetchVentas()} className="text-red-500 underline">Error — Reintentar</button>
                             ) : (
                               `${ventasResumen?.count ?? 0} transacciones`
                             )}
@@ -336,7 +348,7 @@ export default function CajaPage() {
                           <p className="text-sm font-semibold text-emerald-700">Servicios / Atenciones</p>
                           <p className="text-xs text-gray-400">
                             {errorServicios ? (
-                              <span className="text-red-500">Error al cargar</span>
+                              <button onClick={() => refetchServicios()} className="text-red-500 underline">Error — Reintentar</button>
                             ) : (
                               `${serviciosResumen?.count ?? 0} atenciones`
                             )}
