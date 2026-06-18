@@ -22,26 +22,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const perfil = await fetchPerfil(session.user.id)
-        setUser(perfil)
-      }
-      setLoading(false)
-    })
+    let mounted = true
 
+    // onAuthStateChange fires INITIAL_SESSION on load — use it as single source of truth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        if (!mounted) return
+
         if (session?.user) {
-          const perfil = await fetchPerfil(session.user.id)
-          setUser(perfil)
+          try {
+            const perfil = await fetchPerfil(session.user.id)
+            if (mounted) setUser(perfil)
+          } catch {
+            if (mounted) setUser(null)
+          }
         } else {
-          setUser(null)
+          if (mounted) setUser(null)
         }
+
+        // Always resolve loading — even if fetchPerfil fails
+        if (mounted) setLoading(false)
       }
     )
 
-    return () => subscription.unsubscribe()
+    // Failsafe: if auth doesn't resolve in 8 seconds, unblock the UI
+    const timeout = setTimeout(() => {
+      if (mounted) setLoading(false)
+    }, 8000)
+
+    return () => {
+      mounted = false
+      clearTimeout(timeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   const signIn = useCallback(async (email: string, password: string) => {
