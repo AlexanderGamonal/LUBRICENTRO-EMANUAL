@@ -69,16 +69,17 @@ function FormSkeleton() {
 function ClienteCombobox({
   sucursalId,
   value,
+  selectedNombre,
   onChange,
 }: {
   sucursalId: string
   value: string
+  selectedNombre: string
   onChange: (id: string, nombre: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const [searchInput, setSearchInput] = useState('')
   const debouncedSearch = useDebounce(searchInput, 250)
-  const [selectedNombre, setSelectedNombre] = useState('')
   const wrapperRef = useRef<HTMLDivElement>(null)
 
   // Close on outside click
@@ -121,21 +122,17 @@ function ClienteCombobox({
   })
 
   function handleSelect(cliente: ClienteOption) {
-    setSelectedNombre(cliente.nombre)
     onChange(cliente.id, cliente.nombre)
     setOpen(false)
     setSearchInput('')
   }
 
   function handleClear() {
-    setSelectedNombre('')
     onChange('', '')
     setSearchInput('')
+    setOpen(false)
   }
 
-  // If a value is pre-selected (edit mode) but we don't have selectedNombre yet,
-  // we rely on the parent pre-filling it via setSelectedNombre prop pattern;
-  // instead we just show the badge when value is set.
   const hasValue = !!value
 
   return (
@@ -457,17 +454,13 @@ export default function VehiculoFormPage() {
               <ClienteCombobox
                 sucursalId={sucursalId}
                 value={field.value ?? ''}
+                selectedNombre={selectedClienteNombre}
                 onChange={(clienteId, nombre) => {
                   field.onChange(clienteId)
                   setSelectedClienteNombre(nombre)
                 }}
               />
             )}
-          />
-          {/* Expose selectedClienteNombre to combobox via effect */}
-          <ClienteNameSync
-            nombre={selectedClienteNombre}
-            setValue={(nombre) => setSelectedClienteNombre(nombre)}
           />
 
         </div>
@@ -508,17 +501,3 @@ export default function VehiculoFormPage() {
   )
 }
 
-// Helper: tiny no-op component to expose the setter for preload in edit mode.
-// The combobox reads selectedNombre from its own state; we sync it externally
-// by calling setSelectedClienteNombre from parent. This component exists only
-// to satisfy React's rules of hooks — actual sync happens via useEffect in
-// VehiculoFormPage via the vehiculoData effect above.
-function ClienteNameSync({
-  nombre: _nombre,
-  setValue: _setValue,
-}: {
-  nombre: string
-  setValue: (n: string) => void
-}) {
-  return null
-}
