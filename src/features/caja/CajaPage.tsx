@@ -372,8 +372,20 @@ export default function CajaPage() {
                 <div className="card p-6 shadow-md border-l-4 border-red-400">
                   <h3 className="text-lg font-bold text-gray-800 mb-4">Confirmar Cierre de Caja</h3>
                   <div className="space-y-4">
+                    {/* Instrucción de conteo */}
+                    {!resumenLoading && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+                        <p className="font-semibold text-amber-800 mb-0.5">¿Cuánto contar?</p>
+                        <p className="text-amber-700">
+                          Cuenta <strong>todos</strong> los billetes y monedas del cajón.
+                          Deberías tener aproximadamente{' '}
+                          <strong>{formatCurrency(Number(caja.monto_apertura) + totalTurno)}</strong>
+                          {' '}(S/ {formatCurrency(caja.monto_apertura)} de apertura + S/ {formatCurrency(totalTurno)} de ventas/servicios).
+                        </p>
+                      </div>
+                    )}
                     <div>
-                      <label className="label-text">Efectivo contado en caja (S/)</label>
+                      <label className="label-text">Total de efectivo contado en el cajón (S/)</label>
                       <input
                         type="number"
                         min={0}
@@ -383,6 +395,7 @@ export default function CajaPage() {
                         className="input-field"
                         placeholder="0.00"
                       />
+                      <p className="text-xs text-gray-400 mt-1">Ingresa el total físico: apertura + lo recaudado durante el turno</p>
                     </div>
                     <div>
                       <label className="label-text">Observaciones (opcional)</label>
