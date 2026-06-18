@@ -8,9 +8,17 @@ export function formatCurrency(amount: number | null | undefined): string {
   }).format(n)
 }
 
+// Date-only strings like '2026-06-17' are parsed as UTC midnight by JS.
+// In Lima (UTC-5) that becomes the previous day at 7pm, showing the wrong date.
+// Fix: treat date-only strings as local noon so no timezone shift occurs.
+function parseDate(date: string | Date): Date {
+  if (date instanceof Date) return date
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(date + 'T12:00:00') : new Date(date)
+}
+
 export function formatDate(date: string | Date): string {
   try {
-    const d = date instanceof Date ? date : new Date(date)
+    const d = parseDate(date)
     if (isNaN(d.getTime())) return '—'
     return new Intl.DateTimeFormat('es-PE', {
       day: '2-digit',
@@ -24,7 +32,7 @@ export function formatDate(date: string | Date): string {
 
 export function formatDateTime(date: string | Date): string {
   try {
-    const d = date instanceof Date ? date : new Date(date)
+    const d = parseDate(date)
     if (isNaN(d.getTime())) return '—'
     return new Intl.DateTimeFormat('es-PE', {
       day: '2-digit',
