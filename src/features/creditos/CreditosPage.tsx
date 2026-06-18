@@ -299,7 +299,7 @@ export default function CreditosPage() {
     <div className="animate-fade-in p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Créditos</h1>
+        <h1 className="text-2xl font-bold text-[#1F3864]">Créditos</h1>
         <p className="text-sm text-gray-500 mt-0.5">Gestión de cuentas por cobrar</p>
       </div>
 
@@ -314,7 +314,7 @@ export default function CreditosPage() {
             </div>
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wide">Créditos activos</p>
-              <p className="text-2xl font-bold text-gray-900">{creditos.length}</p>
+              <p className="text-2xl font-bold text-[#1F3864]">{creditos.length}</p>
             </div>
           </div>
         </div>

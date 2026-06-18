@@ -109,7 +109,7 @@ export default function ClientesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
+          <h1 className="text-2xl font-bold text-[#1F3864]">Clientes</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {isLoading ? '...' : `${clientes.length} cliente${clientes.length !== 1 ? 's' : ''} registrado${clientes.length !== 1 ? 's' : ''}`}
           </p>

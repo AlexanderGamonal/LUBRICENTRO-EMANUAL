@@ -120,7 +120,7 @@ export default function CajaPage() {
     <div className="animate-fade-in p-6 max-w-3xl mx-auto">
       {/* Page Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Gestión de Caja</h1>
+        <h1 className="text-2xl font-bold text-[#1F3864]">Gestión de Caja</h1>
         <p className="text-sm text-gray-500 mt-1">{formatDate(today)}</p>
       </div>
 
