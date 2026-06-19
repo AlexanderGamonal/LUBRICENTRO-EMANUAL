@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/shared/lib/supabase'
@@ -52,7 +52,19 @@ export default function CajaPage() {
     },
     enabled: !!user?.sucursal_id,
     retry: 1,
+    staleTime: 0,          // siempre refetch al montar — evita datos de caché incompletos
+    refetchOnMount: true,
   })
+
+  // Si la caja cargó pero le faltan campos clave (fecha undefined),
+  // auto-invalida para refetcher con datos completos
+  const prevCajaIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (caja && !caja.fecha && caja.id !== prevCajaIdRef.current) {
+      prevCajaIdRef.current = caja.id
+      queryClient.invalidateQueries({ queryKey: ['caja-activa', user?.sucursal_id] })
+    }
+  }, [caja, user?.sucursal_id, queryClient])
 
   /* ── Ventas del turno ────────────────────────────────────── */
   const {
@@ -89,7 +101,8 @@ export default function CajaPage() {
   } = useQuery<Resumen>({
     queryKey: ['servicios-caja-dia', caja?.sucursal_id, caja?.fecha],
     queryFn: async () => {
-      if (!caja) return { count: 0, total: 0 }
+      // Guard: nunca disparar con fecha undefined — causaría error en Supabase
+      if (!caja?.fecha || !caja?.sucursal_id) return { count: 0, total: 0 }
       const { data, error } = await supabase
         .from('servicios')
         .select('total')
@@ -102,7 +115,8 @@ export default function CajaPage() {
         total: data?.reduce((s, sv) => s + Number(sv.total ?? 0), 0) ?? 0,
       }
     },
-    enabled: !!caja,
+    // Solo habilitar cuando caja tiene fecha válida
+    enabled: !!(caja?.fecha && caja?.sucursal_id),
     retry: 1,
     staleTime: 30_000,
   })

@@ -11,9 +11,12 @@ export function formatCurrency(amount: number | null | undefined): string {
 // Date-only strings like '2026-06-17' are parsed as UTC midnight by JS.
 // In Lima (UTC-5) that becomes the previous day at 7pm, showing the wrong date.
 // Fix: treat date-only strings as local noon so no timezone shift occurs.
+// PostgreSQL also returns timestamps with microseconds (6 decimal digits) that
+// some Android WebViews reject as Invalid Date — normalize to milliseconds (3 digits).
 function parseDate(date: string | Date): Date {
   if (date instanceof Date) return date
-  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(date + 'T12:00:00') : new Date(date)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return new Date(date + 'T12:00:00')
+  return new Date(date.replace(/(\.\d{3})\d+/, '$1'))
 }
 
 export function formatDate(date: string | Date): string {
