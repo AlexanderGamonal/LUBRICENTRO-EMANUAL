@@ -30,7 +30,7 @@ const navSections = [
       { to: '/productos', label: 'Productos', icon: PackageIcon },
       { to: '/inventario', label: 'Inventario', icon: ChartIcon },
       { to: '/busqueda', label: 'Búsqueda', icon: SearchIcon },
-      { to: '/importacion', label: 'Importar', icon: UploadIcon },
+      { to: '/importacion', label: 'Importar', icon: UploadIcon, roles: ['admin', 'superadmin', 'almacen'] },
     ],
   },
 ]
@@ -146,13 +146,20 @@ export function AppLayout() {
 
           {/* Nav */}
           <nav className="flex-1 py-3 overflow-y-auto px-2 space-y-4">
-            {navSections.map((section) => (
+            {navSections.map((section) => {
+              const allowedItems = section.items.filter(item => {
+                if (!item.roles) return true
+                return item.roles.includes(user?.rol ?? '')
+              })
+              if (allowedItems.length === 0) return null
+              
+              return (
               <div key={section.label}>
                 <p className="text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5" style={{ color: '#475569' }}>
                   {section.label}
                 </p>
                 <div className="space-y-0.5">
-                  {section.items.map(({ to, label, icon: Icon, exact }: { to: string; label: string; icon: React.ComponentType<{ className?: string }>; exact?: boolean }) => (
+                  {allowedItems.map(({ to, label, icon: Icon, exact }) => (
                     <NavLink
                       key={to}
                       to={to}
@@ -184,7 +191,7 @@ export function AppLayout() {
                   ))}
                 </div>
               </div>
-            ))}
+            )})}
           </nav>
 
           {/* User */}

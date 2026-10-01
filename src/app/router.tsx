@@ -76,9 +76,17 @@ export const router = createBrowserRouter([
             children: [{ index: true, element: <ProductoFormPage mode="edit" /> }],
           },
           { path: '/inventario', element: <InventarioPage /> },
-          { path: '/inventario/ajuste/:productoId', element: <AjusteStockPage /> },
+          {
+            path: '/inventario/ajuste/:productoId',
+            element: <ProtectedRoute allowedRoles={['admin', 'superadmin', 'almacen']} />,
+            children: [{ index: true, element: <AjusteStockPage /> }],
+          },
           { path: '/busqueda', element: <BusquedaRapidaPage /> },
-          { path: '/importacion', element: <ImportacionPage /> },
+          {
+            path: '/importacion',
+            element: <ProtectedRoute allowedRoles={['admin', 'superadmin', 'almacen']} />,
+            children: [{ index: true, element: <ImportacionPage /> }],
+          },
 
           { path: '*', element: <Navigate to="/" replace /> },
         ],
