@@ -1,4 +1,5 @@
 export function formatCurrency(amount: number | null | undefined): string {
+  if (amount == null) return 'S/ —'
   const n = Number(amount)
   if (isNaN(n)) return 'S/ —'
   return new Intl.NumberFormat('es-PE', {

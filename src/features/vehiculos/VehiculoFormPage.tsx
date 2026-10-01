@@ -16,7 +16,7 @@ const vehiculoSchema = z.object({
     .min(6, 'La placa debe tener al menos 6 caracteres')
     .max(8, 'La placa no puede superar 8 caracteres')
     .transform((v) => v.toUpperCase().trim())
-    .refine((v) => /^[A-Z0-9\-]+$/.test(v), {
+    .refine((v) => /^[A-Z0-9-]+$/.test(v), {
       message: 'Solo letras, números y guiones',
     }),
   marca_vehiculo: z.string().optional().or(z.literal('')),
