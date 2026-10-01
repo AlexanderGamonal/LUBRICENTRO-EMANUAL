@@ -5,6 +5,8 @@ import type { AuthContextValue, UsuarioPerfil } from './types'
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+const PERFIL_CACHE_KEY = 'lubricentro_perfil'
+
 // Retries up to 3 times with 1s/2s delays — handles brief network unavailability on PWA cold start
 async function fetchPerfil(authUserId: string): Promise<UsuarioPerfil | null> {
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -16,11 +18,24 @@ async function fetchPerfil(authUserId: string): Promise<UsuarioPerfil | null> {
         .eq('activo', true)
         .single()
       if (error) throw error
-      return data as UsuarioPerfil
+      
+      const perfil = data as UsuarioPerfil
+      localStorage.setItem(PERFIL_CACHE_KEY, JSON.stringify(perfil))
+      return perfil
     } catch {
       if (attempt < 2) {
         await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
       }
+    }
+  }
+  
+  // Fallback to cache if network fails completely
+  const cached = localStorage.getItem(PERFIL_CACHE_KEY)
+  if (cached) {
+    try {
+      return JSON.parse(cached) as UsuarioPerfil
+    } catch {
+      return null
     }
   }
   return null
@@ -34,7 +49,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true
 
     async function init() {
-      // Step 1: read session from localStorage immediately (no network needed)
       const { data: { session } } = await supabase.auth.getSession()
 
       if (!mounted) return
@@ -42,6 +56,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) {
         const perfil = await fetchPerfil(session.user.id)
         if (mounted) setUser(perfil)
+      } else {
+        localStorage.removeItem(PERFIL_CACHE_KEY)
       }
 
       if (mounted) setLoading(false)
@@ -49,8 +65,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     init()
 
-    // Step 2: listen for subsequent auth events (sign in, sign out, token refresh)
-    // Skip INITIAL_SESSION — handled by getSession() above to avoid double fetchPerfil
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
@@ -60,12 +74,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const perfil = await fetchPerfil(session.user.id)
           if (mounted) setUser(perfil)
         } else {
+          localStorage.removeItem(PERFIL_CACHE_KEY)
           if (mounted) setUser(null)
         }
       }
     )
 
-    // Failsafe: unblock UI after 5s if something hangs
     const timeout = setTimeout(() => {
       if (mounted) setLoading(false)
     }, 5000)
@@ -89,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
+    localStorage.removeItem(PERFIL_CACHE_KEY)
     setUser(null)
   }, [])
 

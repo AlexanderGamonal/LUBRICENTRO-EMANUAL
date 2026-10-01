@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { cn } from '@/shared/utils/cn'
@@ -51,17 +51,25 @@ const PLANTILLA_HEADERS = [
   'costo',
 ]
 
-function descargarPlantilla() {
-  const wb = XLSX.utils.book_new()
-  const wsData = [
-    PLANTILLA_HEADERS,
-    ['PRD-001', 'Aceite Mobil 20W-50 1L', 25.9, '', 'Mobil', '20W-50 API SL', 5, 10, 18],
-    ['PRD-002', 'Filtro de aceite Toyota', 12.5, '', 'Toyota', '', 3, 5, 8],
-  ]
-  const ws = XLSX.utils.aoa_to_sheet(wsData)
-  ws['!cols'] = PLANTILLA_HEADERS.map(() => ({ wch: 22 }))
-  XLSX.utils.book_append_sheet(wb, ws, 'Productos')
-  XLSX.writeFile(wb, 'plantilla_productos.xlsx')
+async function descargarPlantilla() {
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Productos')
+  ws.addRow(PLANTILLA_HEADERS)
+  ws.addRow(['PRD-001', 'Aceite Mobil 20W-50 1L', 25.9, '', 'Mobil', '20W-50 API SL', 5, 10, 18])
+  ws.addRow(['PRD-002', 'Filtro de aceite Toyota', 12.5, '', 'Toyota', '', 3, 5, 8])
+  
+  ws.columns.forEach(column => {
+    column.width = 22
+  })
+
+  const buffer = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'plantilla_productos.xlsx'
+  a.click()
+  window.URL.revokeObjectURL(url)
 }
 
 function normalizarClave(key: string): string {
@@ -137,12 +145,34 @@ export function ImportacionPage() {
     }
 
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
-        const data = e.target?.result
-        const wb = XLSX.read(data, { type: 'binary' })
-        const ws = wb.Sheets[wb.SheetNames[0]]
-        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws)
+        const data = e.target?.result as ArrayBuffer
+        const wb = new ExcelJS.Workbook()
+        await wb.xlsx.load(data)
+        
+        const ws = wb.worksheets[0]
+        if (!ws) {
+          toast.error('El archivo no tiene hojas válidas')
+          return
+        }
+
+        const jsonData: Record<string, unknown>[] = []
+        let headers: string[] = []
+
+        ws.eachRow((row, rowNumber) => {
+          if (rowNumber === 1) {
+            headers = (row.values as string[]).map(h => String(h || ''))
+          } else {
+            const rowData: Record<string, unknown> = {}
+            ;(row.values as unknown[]).forEach((value, index) => {
+              if (headers[index]) {
+                rowData[headers[index]] = value
+              }
+            })
+            jsonData.push(rowData)
+          }
+        })
 
         if (jsonData.length === 0) {
           toast.error('El archivo no tiene datos')
@@ -153,11 +183,12 @@ export function ImportacionPage() {
         const filasValidadas = filasRaw.map(validarFila)
         setFilas(filasValidadas)
         setStep(2)
-      } catch {
+      } catch (err) {
+        console.error(err)
         toast.error('No se pudo leer el archivo. Verifica que sea un Excel o CSV válido.')
       }
     }
-    reader.readAsBinaryString(file)
+    reader.readAsArrayBuffer(file)
   }, [])
 
   function handleFileDrop(e: React.DragEvent<HTMLDivElement>) {
