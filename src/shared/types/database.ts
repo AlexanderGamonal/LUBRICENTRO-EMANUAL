@@ -714,6 +714,25 @@ export interface Database {
       }
     }
     Functions: {
+      crear_producto: {
+        Args: {
+          p_sucursal_id: string
+          p_codigo_interno: string
+          p_nombre: string
+          p_precio_venta: number
+          p_costo: number
+          p_stock_inicial?: number
+          p_stock_minimo?: number
+          p_categoria_id?: string | null
+          p_ubicacion_id?: string | null
+          p_codigo_barras?: string | null
+          p_marca?: string | null
+          p_viscosidad_especificacion?: string | null
+          p_tiene_codigo_barras?: boolean
+          p_foto_url?: string | null
+        }
+        Returns: Json
+      }
       registrar_movimiento_stock: {
         Args: {
           p_producto_id: string

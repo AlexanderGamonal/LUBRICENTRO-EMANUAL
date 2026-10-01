@@ -21,7 +21,7 @@ export function ProductoFormPage({ mode }: ProductoFormPageProps) {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { crearProducto, actualizarProducto } = useProductoMutations()
+  const { actualizarProducto } = useProductoMutations()
 
   const [zona, setZona] = useState('')
   const [estante, setEstante] = useState('')
@@ -187,46 +187,45 @@ export function ProductoFormPage({ mode }: ProductoFormPageProps) {
         const stockInicial = formData.stock_inicial ?? 0
         setUploading(true)
 
-        const insertData = {
-          sucursal_id: user.sucursal_id,
-          codigo_interno: formData.codigo_interno,
-          codigo_barras: formData.codigo_barras || null,
-          nombre: formData.nombre,
-          marca: formData.marca || null,
-          viscosidad_especificacion: formData.viscosidad_especificacion || null,
-          categoria_id: formData.categoria_id || null,
-          ubicacion_id: formData.ubicacion_id || null,
-          precio_venta: formData.precio_venta,
-          costo: formData.costo ?? 0,
-          stock_actual: stockInicial,
-          stock_minimo: formData.stock_minimo ?? 0,
-          tiene_codigo_barras: formData.tiene_codigo_barras ?? false,
-          foto_url: null as string | null,
-          activo: formData.activo ?? true,
-        }
+        // Usamos la RPC crear_producto que es atómica:
+        // inserta con stock=0 y registra la entrada en la misma transacción.
+        // Así nunca queda un producto con stock_actual incorrecto si algo falla.
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('crear_producto', {
+          p_sucursal_id:               user.sucursal_id,
+          p_codigo_interno:            formData.codigo_interno,
+          p_nombre:                    formData.nombre,
+          p_precio_venta:              formData.precio_venta,
+          p_costo:                     formData.costo ?? 0,
+          p_stock_inicial:             stockInicial,
+          p_stock_minimo:              formData.stock_minimo ?? 0,
+          p_categoria_id:              formData.categoria_id || null,
+          p_ubicacion_id:              formData.ubicacion_id || null,
+          p_codigo_barras:             formData.codigo_barras || null,
+          p_marca:                     formData.marca || null,
+          p_viscosidad_especificacion: formData.viscosidad_especificacion || null,
+          p_tiene_codigo_barras:       formData.tiene_codigo_barras ?? false,
+          p_foto_url:                  null,
+        })
 
-        const prod = await crearProducto.mutateAsync(insertData)
         setUploading(false)
 
-        if (prod && fotoFile) {
+        if (rpcError) {
+          toast.error('Error al crear el producto: ' + rpcError.message)
+          return
+        }
+
+        const productoId = (rpcResult as { producto_id: string } | null)?.producto_id
+
+        if (productoId && fotoFile) {
           setUploading(true)
-          const url = await uploadFoto(prod.id)
+          const url = await uploadFoto(productoId)
           if (url) {
             await supabase
               .from('productos')
               .update({ foto_url: url })
-              .eq('id', prod.id)
+              .eq('id', productoId)
           }
           setUploading(false)
-        }
-
-        if (prod && stockInicial > 0) {
-          await supabase.rpc('registrar_movimiento_stock', {
-            p_producto_id: prod.id,
-            p_tipo: 'entrada',
-            p_cantidad: stockInicial,
-            p_motivo: 'Stock inicial al crear producto',
-          })
         }
 
         navigate('/productos')
@@ -264,7 +263,7 @@ export function ProductoFormPage({ mode }: ProductoFormPageProps) {
     }
   }
 
-  const isBusy = isSubmitting || uploading || crearProducto.isPending || actualizarProducto.isPending
+  const isBusy = isSubmitting || uploading || actualizarProducto.isPending
 
   if (mode === 'edit' && loadingProducto) {
     return (

@@ -252,26 +252,31 @@ export function ImportacionPage() {
           resultado.actualizados++
         }
       } else {
-        const { data: prod, error } = await supabase
-          .from('productos')
-          .insert(payload)
-          .select('id')
-          .single()
+        // Producto nuevo: usar RPC atómica que inserta y registra stock en una sola tx
+        const { error: rpcError } = await supabase.rpc('crear_producto', {
+          p_sucursal_id:               user.sucursal_id,
+          p_codigo_interno:            datos.codigo_interno,
+          p_nombre:                    datos.nombre,
+          p_precio_venta:              typeof datos.precio_venta === 'string'
+                                         ? parseFloat(datos.precio_venta) || 0
+                                         : Number(datos.precio_venta),
+          p_costo:                     typeof datos.costo === 'string'
+                                         ? parseFloat(datos.costo as string) || 0
+                                         : Number(datos.costo ?? 0),
+          p_stock_inicial:             Number(datos.stock_inicial ?? 0),
+          p_stock_minimo:              Number(datos.stock_minimo ?? 0),
+          p_codigo_barras:             datos.codigo_barras ?? null,
+          p_marca:                     datos.marca ?? null,
+          p_viscosidad_especificacion: datos.viscosidad_especificacion ?? null,
+          p_tiene_codigo_barras:       false,
+          p_foto_url:                  null,
+        })
 
-        if (error) {
+        if (rpcError) {
           resultado.errores++
-          resultado.detalles.push(`Fila ${fila.rowNum}: ${error.message}`)
+          resultado.detalles.push(`Fila ${fila.rowNum}: ${rpcError.message}`)
         } else {
           resultado.creados++
-          // Registrar stock inicial si > 0
-          if (Number(datos.stock_inicial ?? 0) > 0 && prod) {
-            await supabase.rpc('registrar_movimiento_stock', {
-              p_producto_id: prod.id,
-              p_tipo: 'entrada',
-              p_cantidad: Number(datos.stock_inicial),
-              p_motivo: 'Stock inicial importado',
-            })
-          }
         }
       }
 
