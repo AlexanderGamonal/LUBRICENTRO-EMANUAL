@@ -16,7 +16,6 @@ export default defineConfig({
             if (id.includes('@supabase')) return 'vendor-supabase'
             if (id.includes('exceljs')) return 'vendor-excel'
             if (id.includes('lucide-react') || id.includes('sonner')) return 'vendor-ui'
-            return 'vendor'
           }
         }
       }
