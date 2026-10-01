@@ -286,6 +286,7 @@ export interface Database {
           producto_id: string
           cantidad: number
           precio_unitario: number
+          costo_unitario: number
           subtotal: number
           created_at: string
         }
@@ -295,6 +296,7 @@ export interface Database {
           producto_id: string
           cantidad: number
           precio_unitario: number
+          costo_unitario?: number
           subtotal: number
         }
         Update: never
