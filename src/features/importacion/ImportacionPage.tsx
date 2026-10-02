@@ -23,6 +23,8 @@ interface FilaRaw {
   stock_minimo?: number | string
   stock_inicial?: number | string
   costo?: number | string
+  categoria?: string
+  ubicacion?: string
 }
 
 interface FilaValidada {
@@ -51,14 +53,16 @@ const PLANTILLA_HEADERS = [
   'stock_minimo',
   'stock_inicial',
   'costo',
+  'categoria',
+  'ubicacion',
 ]
 
 async function descargarPlantilla() {
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet('Productos')
   ws.addRow(PLANTILLA_HEADERS)
-  ws.addRow(['PRD-001', 'Aceite Mobil 20W-50 1L', 25.9, '', 'Mobil', '20W-50 API SL', 5, 10, 18])
-  ws.addRow(['PRD-002', 'Filtro de aceite Toyota', 12.5, '', 'Toyota', '', 3, 5, 8])
+  ws.addRow(['PRD-001', 'Aceite Mobil 20W-50 1L', 25.9, '', 'Mobil', '20W-50 API SL', 5, 10, 18, 'Aceites', 'A-1-1'])
+  ws.addRow(['PRD-002', 'Filtro de aceite Toyota', 12.5, '', 'Toyota', '', 3, 5, 8, 'Filtros', 'B-2-1'])
   
   ws.columns.forEach(column => {
     column.width = 22
@@ -75,7 +79,7 @@ async function descargarPlantilla() {
 }
 
 function normalizarClave(key: string): string {
-  let n = key
+  const n = key
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim()
@@ -108,6 +112,8 @@ function parsearFilas(data: Record<string, unknown>[]): FilaRaw[] {
       stock_minimo: (normalized['stock_minimo'] ?? 0) as number | string,
       stock_inicial: (normalized['stock_inicial'] ?? 0) as number | string,
       costo: (normalized['costo'] ?? 0) as number | string,
+      categoria: String(normalized['categoria'] ?? '').trim() || undefined,
+      ubicacion: String(normalized['ubicacion'] ?? '').trim() || undefined,
     }
   })
 }
@@ -269,9 +275,68 @@ export function ImportacionPage() {
       (existentes ?? []).map((p) => [p.codigo_interno, p.id]),
     )
 
+    // Pre-cargar categorías y ubicaciones
+    const { data: categoriasExistentes } = await supabase
+      .from('categorias')
+      .select('id, nombre')
+      .eq('sucursal_id', user.sucursal_id)
+
+    const { data: ubicacionesExistentes } = await supabase
+      .from('ubicaciones')
+      .select('id, codigo')
+      .eq('sucursal_id', user.sucursal_id)
+
+    const mapaCategorias = new Map<string, string>(
+      (categoriasExistentes ?? []).map(c => [c.nombre.toLowerCase(), c.id])
+    )
+    const mapaUbicaciones = new Map<string, string>(
+      (ubicacionesExistentes ?? []).map(u => [u.codigo.toLowerCase(), u.id])
+    )
+
     for (let i = 0; i < filasValidas.length; i++) {
       const fila = filasValidas[i]
       const datos = fila.datos
+
+      let categoria_id = null
+      if (datos.categoria) {
+        const catName = datos.categoria.toLowerCase()
+        if (mapaCategorias.has(catName)) {
+          categoria_id = mapaCategorias.get(catName)
+        } else {
+          // Crear categoría
+          const { data: newCat } = await supabase.from('categorias').insert({
+            sucursal_id: user.sucursal_id,
+            nombre: datos.categoria
+          }).select('id').single()
+          if (newCat) {
+            categoria_id = newCat.id
+            mapaCategorias.set(catName, newCat.id)
+          }
+        }
+      }
+
+      let ubicacion_id = null
+      if (datos.ubicacion) {
+        const ubiCode = datos.ubicacion.toLowerCase()
+        if (mapaUbicaciones.has(ubiCode)) {
+          ubicacion_id = mapaUbicaciones.get(ubiCode)
+        } else {
+          // Parse zona, estante, nivel if possible, e.g. A-1-1
+          const parts = datos.ubicacion.toUpperCase().split('-')
+          if (parts.length === 3) {
+            const { data: newUbi } = await supabase.from('ubicaciones').insert({
+              sucursal_id: user.sucursal_id,
+              zona: parts[0].charAt(0),
+              estante: parseInt(parts[1]) || 1,
+              nivel: parseInt(parts[2]) || 1
+            }).select('id, codigo').single()
+            if (newUbi) {
+              ubicacion_id = newUbi.id
+              mapaUbicaciones.set(newUbi.codigo.toLowerCase(), newUbi.id)
+            }
+          }
+        }
+      }
 
       const payload: Database['public']['Tables']['productos']['Insert'] = {
         sucursal_id: user.sucursal_id,
@@ -293,8 +358,8 @@ export function ImportacionPage() {
         tiene_codigo_barras: false,
         foto_url: null,
         activo: true,
-        categoria_id: null,
-        ubicacion_id: null,
+        categoria_id,
+        ubicacion_id,
       }
 
       const existenteId = mapaExistentes.get(datos.codigo_interno)
