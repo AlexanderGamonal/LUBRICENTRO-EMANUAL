@@ -375,6 +375,8 @@ export function ImportacionPage() {
             codigo_barras: payload.codigo_barras,
             marca: payload.marca,
             viscosidad_especificacion: payload.viscosidad_especificacion,
+            categoria_id: categoria_id,
+            ubicacion_id: ubicacion_id,
           })
           .eq('id', existenteId)
           .eq('sucursal_id', user.sucursal_id)
@@ -399,6 +401,8 @@ export function ImportacionPage() {
                                          : Number(datos.costo ?? 0),
           p_stock_inicial:             Number(datos.stock_inicial ?? 0),
           p_stock_minimo:              Number(datos.stock_minimo ?? 0),
+          p_categoria_id:              categoria_id,
+          p_ubicacion_id:              ubicacion_id,
           p_codigo_barras:             datos.codigo_barras ?? null,
           p_marca:                     datos.marca ?? null,
           p_viscosidad_especificacion: datos.viscosidad_especificacion ?? null,
