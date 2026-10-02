@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { Car, Plus, Search, SearchX } from 'lucide-react'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 import { formatDate } from '@/shared/utils/formatters'
+import { DataTable, EmptyState } from '@/shared/ui'
+import type { Column } from '@/shared/ui'
 
 type ClienteJoin = {
   id: string
@@ -24,68 +27,12 @@ type VehiculoRow = {
   clientes: ClienteJoin | null
 }
 
-function SkeletonRow() {
-  return (
-    <tr>
-      {[...Array(6)].map((_, i) => (
-        <td key={i} className="px-4 py-3">
-          <div className="h-4 bg-gray-200 rounded animate-pulse" style={{ width: `${55 + i * 7}%` }} />
-        </td>
-      ))}
-    </tr>
-  )
+function buildVehicleLabel(v: VehiculoRow): string {
+  const parts = [v.marca_vehiculo, v.modelo, v.anio ? String(v.anio) : null].filter(Boolean)
+  return parts.length > 0 ? parts.join(' ') : '—'
 }
 
-function SkeletonCard() {
-  return (
-    <div className="card p-4 space-y-3 animate-pulse">
-      <div className="flex items-center justify-between">
-        <div className="h-6 w-24 bg-gray-200 rounded" />
-        <div className="h-4 w-16 bg-gray-100 rounded" />
-      </div>
-      <div className="h-4 w-40 bg-gray-200 rounded" />
-      <div className="h-4 w-28 bg-gray-100 rounded" />
-      <div className="flex gap-2 pt-1">
-        <div className="h-7 w-16 bg-gray-200 rounded" />
-        <div className="h-7 w-24 bg-gray-200 rounded" />
-        <div className="h-7 w-16 bg-gray-100 rounded" />
-      </div>
-    </div>
-  )
-}
-
-function EmptyState({ search }: { search: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <svg
-        className="w-20 h-20 text-gray-300 mb-4"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 64 64"
-        strokeWidth={1.2}
-      >
-        <rect x="4" y="20" width="56" height="28" rx="6" />
-        <circle cx="16" cy="48" r="6" />
-        <circle cx="48" cy="48" r="6" />
-        <path d="M10 20l6-12h32l6 12" strokeLinecap="round" strokeLinejoin="round" />
-        {search && (
-          <>
-            <line x1="50" y1="8" x2="58" y2="16" strokeLinecap="round" strokeWidth={2.5} />
-            <line x1="58" y1="8" x2="50" y2="16" strokeLinecap="round" strokeWidth={2.5} />
-          </>
-        )}
-      </svg>
-      <p className="text-gray-500 font-medium text-lg">
-        {search ? 'No se encontraron vehículos' : 'No hay vehículos registrados'}
-      </p>
-      <p className="text-gray-400 text-sm mt-1">
-        {search
-          ? `Ninguna placa coincide con "${search}" — intenta con otra búsqueda`
-          : 'Registra el primer vehículo con el botón "+ Nuevo vehículo"'}
-      </p>
-    </div>
-  )
-}
+const rowLink = 'inline-flex min-h-touch items-center text-sm font-semibold hover:underline md:min-h-0 md:text-xs md:font-medium'
 
 export default function VehiculosPage() {
   const { user } = useAuth()
@@ -115,211 +62,123 @@ export default function VehiculosPage() {
     enabled: !!user?.sucursal_id,
   })
 
-  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setSearchInput(e.target.value.toUpperCase())
-  }
-
-  function buildVehicleLabel(v: VehiculoRow): string {
-    const parts = [v.marca_vehiculo, v.modelo, v.anio ? String(v.anio) : null].filter(Boolean)
-    return parts.length > 0 ? parts.join(' ') : '—'
-  }
+  const columns: Column<VehiculoRow>[] = [
+    {
+      key: 'placa',
+      header: 'Placa',
+      mobile: 'title',
+      cell: (v) => (
+        <span className="rounded bg-primary-700 px-2 py-0.5 font-mono text-sm font-bold tracking-wider text-white">{v.placa}</span>
+      ),
+    },
+    {
+      key: 'vehiculo',
+      header: 'Marca / Modelo / Año',
+      mobile: 'subtitle',
+      cell: (v) => buildVehicleLabel(v),
+    },
+    { key: 'color', header: 'Color', cell: (v) => v.color ?? <span className="text-fg-subtle">—</span> },
+    {
+      key: 'cliente',
+      header: 'Cliente',
+      cell: (v) =>
+        v.clientes ? (
+          <div>
+            <div className="font-medium text-fg">{v.clientes.nombre}</div>
+            {v.clientes.telefono && <div className="mt-0.5 text-xs text-fg-subtle">{v.clientes.telefono}</div>}
+          </div>
+        ) : (
+          <span className="text-xs italic text-fg-subtle">Sin cliente</span>
+        ),
+    },
+    { key: 'actualizado', header: 'Actualizado', hideBelowLg: true, cell: (v) => formatDate(v.updated_at) },
+    {
+      key: 'acciones',
+      header: 'Acciones',
+      mobile: 'actions',
+      align: 'right',
+      srOnlyHeader: true,
+      cell: (v) => (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 md:justify-end md:gap-3">
+          <Link to={`/vehiculos/${v.id}`} className={`${rowLink} text-primary-700`}>
+            Ver
+          </Link>
+          <Link to={`/servicios/nuevo?vehiculo_id=${v.id}`} className={`${rowLink} text-green-700`}>
+            Nueva atención
+          </Link>
+          <Link to={`/vehiculos/${v.id}/editar`} className={`${rowLink} text-fg-muted`}>
+            Editar
+          </Link>
+        </div>
+      ),
+    },
+  ]
 
   return (
-    <div className="animate-fade-in p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div className="animate-fade-in p-4 sm:p-6">
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-primary-700">Vehículos</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {isLoading
-              ? 'Cargando...'
-              : `${vehiculos.length} vehículo${vehiculos.length !== 1 ? 's' : ''} encontrado${vehiculos.length !== 1 ? 's' : ''}`}
+          <p className="mt-0.5 text-sm text-fg-muted">
+            {isLoading ? 'Cargando…' : `${vehiculos.length} vehículo${vehiculos.length !== 1 ? 's' : ''} encontrado${vehiculos.length !== 1 ? 's' : ''}`}
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          {/* Search */}
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
           <div className="relative">
-            <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="8" strokeWidth={2} />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" strokeWidth={2} strokeLinecap="round" />
-              </svg>
-            </span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" aria-hidden="true" />
             <input
-              type="text"
+              type="search"
+              aria-label="Buscar vehículo por placa"
               value={searchInput}
-              onChange={handleSearchChange}
+              onChange={(e) => setSearchInput(e.target.value.toUpperCase())}
               placeholder="Buscar por placa..."
-              className="input-field pl-9 pr-4 w-full sm:w-64 font-mono"
+              autoCapitalize="characters"
+              className="input-field w-full pl-9 pr-4 font-mono sm:w-64"
               maxLength={8}
             />
           </div>
 
-          <Link
-            to="/vehiculos/nuevo"
-            className="btn-primary flex items-center justify-center gap-2 whitespace-nowrap"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <line x1="12" y1="5" x2="12" y2="19" strokeLinecap="round" strokeWidth={2} />
-              <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" strokeWidth={2} />
-            </svg>
+          <Link to="/vehiculos/nuevo" className="btn-primary flex items-center justify-center gap-2 whitespace-nowrap">
+            <Plus className="h-4 w-4" aria-hidden="true" />
             Nuevo vehículo
           </Link>
         </div>
       </div>
 
-      {/* Desktop table */}
-      <div className="hidden md:block card overflow-hidden p-0">
-        <div className="overflow-x-auto">
-          <table className="premium-table w-full">
-            <thead>
-              <tr>
-                <th>Placa</th>
-                <th>Marca / Modelo / Año</th>
-                <th>Color</th>
-                <th>Cliente</th>
-                <th>Actualizado</th>
-                <th className="text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {isLoading ? (
-                [...Array(6)].map((_, i) => <SkeletonRow key={i} />)
-              ) : vehiculos.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>
-                    <EmptyState search={debouncedSearch} />
-                  </td>
-                </tr>
-              ) : (
-                vehiculos.map((v) => {
-                  const cliente = v.clientes
-                  const vehicleLabel = buildVehicleLabel(v)
-                  return (
-                    <tr key={v.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3">
-                        <span className="bg-primary-700 text-white px-2 py-0.5 rounded text-sm font-mono font-bold tracking-wider">
-                          {v.placa}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        {vehicleLabel}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {v.color ?? <span className="text-gray-300 italic">—</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        {cliente ? (
-                          <div>
-                            <div className="text-sm font-medium text-gray-800">{cliente.nombre}</div>
-                            {cliente.telefono && (
-                              <div className="text-xs text-gray-400 mt-0.5">{cliente.telefono}</div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400 italic">Sin cliente</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
-                        {formatDate(v.updated_at)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-3">
-                          <Link
-                            to={`/vehiculos/${v.id}`}
-                            className="text-xs font-medium text-primary-700 hover:underline"
-                          >
-                            Ver
-                          </Link>
-                          <Link
-                            to={`/servicios/nuevo?vehiculo_id=${v.id}`}
-                            className="text-xs font-medium text-green-700 hover:underline"
-                          >
-                            Nueva atención
-                          </Link>
-                          <Link
-                            to={`/vehiculos/${v.id}/editar`}
-                            className="text-xs font-medium text-gray-500 hover:text-gray-700 hover:underline"
-                          >
-                            Editar
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Mobile cards */}
-      <div className="md:hidden space-y-3">
-        {isLoading ? (
-          [...Array(4)].map((_, i) => <SkeletonCard key={i} />)
-        ) : vehiculos.length === 0 ? (
-          <div className="card">
-            <EmptyState search={debouncedSearch} />
-          </div>
-        ) : (
-          vehiculos.map((v) => {
-            const cliente = v.clientes
-            const vehicleLabel = buildVehicleLabel(v)
-            return (
-              <div key={v.id} className="card p-4">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <span className="bg-primary-700 text-white px-3 py-1 rounded-lg text-base font-mono font-bold tracking-wider">
-                    {v.placa}
-                  </span>
-                  <span className="text-xs text-gray-400">{formatDate(v.updated_at)}</span>
-                </div>
-
-                {vehicleLabel !== '—' && (
-                  <p className="text-sm font-medium text-gray-700 mb-1">{vehicleLabel}</p>
-                )}
-
-                {v.color && (
-                  <p className="text-xs text-gray-500 mb-2">Color: {v.color}</p>
-                )}
-
-                {cliente ? (
-                  <div className="mb-3 bg-gray-50 rounded-lg px-3 py-2">
-                    <p className="text-sm font-medium text-gray-700">{cliente.nombre}</p>
-                    {cliente.telefono && (
-                      <p className="text-xs text-gray-400 mt-0.5">{cliente.telefono}</p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400 italic mb-3">Sin cliente asociado</p>
-                )}
-
-                <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-100">
-                  <Link
-                    to={`/vehiculos/${v.id}`}
-                    className="text-xs font-semibold text-primary-700 hover:underline px-2 py-1 rounded hover:bg-primary-700/5 transition-colors"
-                  >
-                    Ver detalle
-                  </Link>
-                  <Link
-                    to={`/servicios/nuevo?vehiculo_id=${v.id}`}
-                    className="text-xs font-semibold text-green-700 hover:underline px-2 py-1 rounded hover:bg-green-50 transition-colors"
-                  >
-                    Nueva atención
-                  </Link>
-                  <Link
-                    to={`/vehiculos/${v.id}/editar`}
-                    className="text-xs font-semibold text-gray-500 hover:underline px-2 py-1 rounded hover:bg-gray-100 transition-colors"
-                  >
-                    Editar
-                  </Link>
-                </div>
-              </div>
-            )
-          })
-        )}
-      </div>
+      <DataTable
+        caption="Listado de vehículos"
+        columns={columns}
+        rows={vehiculos}
+        rowKey={(v) => v.id}
+        loading={isLoading}
+        skeletonRows={5}
+        empty={
+          debouncedSearch.trim() ? (
+            <EmptyState
+              icon={SearchX}
+              title="No se encontraron vehículos"
+              description={`Ninguna placa coincide con «${debouncedSearch}». Prueba con otra búsqueda.`}
+              action={
+                <button type="button" className="btn-secondary" onClick={() => setSearchInput('')}>
+                  Limpiar búsqueda
+                </button>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={Car}
+              title="No hay vehículos registrados"
+              description="Registra el primero para llevar el historial de atenciones por placa."
+              action={
+                <Link to="/vehiculos/nuevo" className="btn-primary">
+                  Nuevo vehículo
+                </Link>
+              }
+            />
+          )
+        }
+      />
     </div>
   )
 }

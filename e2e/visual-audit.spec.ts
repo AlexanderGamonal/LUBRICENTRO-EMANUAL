@@ -2,6 +2,7 @@ import { test } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { mockSupabase, type MockRol } from './helpers/mockSupabase'
+import { FIXTURES } from './fixtures'
 
 /**
  * Auditoría visual y de accesibilidad (no corre en CI salvo AUDIT=1).
@@ -11,8 +12,10 @@ import { mockSupabase, type MockRol } from './helpers/mockSupabase'
 const RUN = !!process.env.AUDIT
 const LABEL = process.env.AUDIT_LABEL ?? 'actual'
 const ROL = (process.env.AUDIT_ROL ?? 'admin') as MockRol
+const THEME = (process.env.AUDIT_THEME ?? 'light') as 'light' | 'dark'
+// Filtros opcionales: AUDIT_ROUTES=/productos,/caja  AUDIT_VIEWPORTS=390,1440
 
-const VIEWPORTS = [
+const ALL_VIEWPORTS = [
   { name: '360', width: 360, height: 740 },
   { name: '390', width: 390, height: 844 },
   { name: '768', width: 768, height: 1024 },
@@ -20,10 +23,15 @@ const VIEWPORTS = [
   { name: '1440', width: 1440, height: 900 },
 ]
 
-const ROUTES = [
-  '/', '/caja', '/ventas/nueva', '/ventas', '/creditos', '/clientes',
-  '/servicios/nuevo', '/servicios', '/vehiculos', '/productos', '/inventario', '/busqueda',
+const ALL_ROUTES = [
+  '/', '/caja', '/ventas/nueva', '/ventas', '/creditos', '/clientes', '/clientes/nuevo',
+  '/servicios/nuevo', '/servicios', '/vehiculos', '/vehiculos/nuevo', '/productos', '/productos/nuevo',
+  '/inventario', '/busqueda',
 ]
+const pick = <T,>(all: T[], env: string | undefined, key: (t: T) => string) =>
+  env ? all.filter((t) => env.split(',').includes(key(t))) : all
+const VIEWPORTS = pick(ALL_VIEWPORTS, process.env.AUDIT_VIEWPORTS, (v) => v.name)
+const ROUTES = pick(ALL_ROUTES, process.env.AUDIT_ROUTES, (r) => r)
 
 test.describe('auditoría visual', () => {
   test.skip(!RUN, 'Define AUDIT=1 para ejecutar la auditoría')
@@ -35,9 +43,10 @@ test.describe('auditoría visual', () => {
     const summary: Record<string, unknown>[] = []
 
     for (const vp of VIEWPORTS) {
-      const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height } })
+      const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, colorScheme: THEME })
       const page = await context.newPage()
-      await mockSupabase(page, ROL)
+      if (THEME === 'dark') await page.addInitScript(() => window.localStorage.setItem('lem-theme', 'dark'))
+      await mockSupabase(page, ROL, FIXTURES)
 
       for (const route of ROUTES) {
         await page.goto(route)

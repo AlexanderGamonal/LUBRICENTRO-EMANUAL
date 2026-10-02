@@ -2,64 +2,33 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { Ban, CircleCheck, Pencil, Plus, Search, UserPlus, UserSearch } from 'lucide-react'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useDebounce } from '@/shared/hooks/useDebounce'
+import { ConfirmDialog, DataTable, EmptyState } from '@/shared/ui'
+import type { Column } from '@/shared/ui'
+import { cn } from '@/shared/utils/cn'
 import type { Database } from '@/shared/types/database'
 
 type ClienteRow = Database['public']['Tables']['clientes']['Row']
 
-function SkeletonRow() {
-  return (
-    <tr>
-      {[...Array(6)].map((_, i) => (
-        <td key={i} className="px-4 py-3">
-          <div className="h-4 bg-gray-200 rounded animate-pulse" style={{ width: `${60 + i * 8}%` }} />
-        </td>
-      ))}
-    </tr>
-  )
-}
+/** Mismos roles que protegen /clientes/nuevo y /clientes/:id/editar en router.tsx. */
+const ROLES_EDITAN = ['admin', 'superadmin', 'vendedor']
 
-function EmptyState({ search }: { search: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <svg
-        className="w-20 h-20 text-gray-300 mb-4"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 64 64"
-        strokeWidth={1.2}
-      >
-        <circle cx="32" cy="24" r="12" />
-        <path d="M8 56c0-10 10.75-18 24-18s24 8 24 18" strokeLinecap="round" />
-        {search && (
-          <>
-            <line x1="50" y1="14" x2="58" y2="22" strokeLinecap="round" strokeWidth={2.5} />
-            <line x1="58" y1="14" x2="50" y2="22" strokeLinecap="round" strokeWidth={2.5} />
-          </>
-        )}
-      </svg>
-      <p className="text-gray-500 font-medium text-lg">
-        {search ? 'No se encontraron clientes' : 'Aún no hay clientes registrados'}
-      </p>
-      <p className="text-gray-400 text-sm mt-1">
-        {search
-          ? `No hay resultados para "${search}"`
-          : 'Registra tu primer cliente con el botón "Nuevo Cliente"'}
-      </p>
-    </div>
-  )
-}
+const iconBtn =
+  'inline-flex h-[44px] w-[44px] items-center justify-center rounded-lg text-fg-subtle transition-colors disabled:opacity-40 md:h-[34px] md:w-[34px]'
 
 export default function ClientesPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-
   const [searchInput, setSearchInput] = useState('')
   const search = useDebounce(searchInput, 300)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [pendiente, setPendiente] = useState<ClienteRow | null>(null)
+
+  const canEdit = !!user && ROLES_EDITAN.includes(user.rol)
 
   const { data: clientes = [], isLoading } = useQuery<ClienteRow[]>({
     queryKey: ['clientes', user?.sucursal_id],
@@ -83,11 +52,6 @@ export default function ClientesPage() {
   }, [clientes, search])
 
   async function handleToggleActivo(cliente: ClienteRow) {
-    const confirm = window.confirm(
-      `¿${cliente.activo ? 'Desactivar' : 'Activar'} al cliente "${cliente.nombre}"?`
-    )
-    if (!confirm) return
-
     setTogglingId(cliente.id)
     try {
       const { error } = await supabase
@@ -101,182 +65,165 @@ export default function ClientesPage() {
       toast.error('Error al actualizar el cliente')
     } finally {
       setTogglingId(null)
+      setPendiente(null)
     }
   }
 
+  const columns: Column<ClienteRow>[] = [
+    {
+      key: 'nombre',
+      header: 'Nombre',
+      mobile: 'title',
+      cell: (c) => (
+        <div>
+          <div className="font-medium text-fg">{c.nombre}</div>
+          {c.email && <div className="mt-0.5 text-xs font-normal text-fg-subtle">{c.email}</div>}
+        </div>
+      ),
+    },
+    {
+      key: 'tipo',
+      header: 'Tipo',
+      cell: (c) => (
+        <span
+          className={cn(
+            'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
+            c.tipo === 'empresa' ? 'bg-purple-100 text-purple-700' : 'bg-sky-100 text-sky-700',
+          )}
+        >
+          {c.tipo === 'empresa' ? 'Empresa' : 'Natural'}
+        </span>
+      ),
+    },
+    { key: 'doc', header: 'RUC / DNI', cell: (c) => c.ruc_dni ?? <span className="text-fg-subtle">—</span> },
+    { key: 'tel', header: 'Teléfono', cell: (c) => c.telefono ?? <span className="text-fg-subtle">—</span> },
+    {
+      key: 'estado',
+      header: 'Estado',
+      cell: (c) => (
+        <span
+          className={cn(
+            'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
+            c.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600',
+          )}
+        >
+          {c.activo ? 'Activo' : 'Inactivo'}
+        </span>
+      ),
+    },
+    {
+      key: 'acciones',
+      header: 'Acciones',
+      mobile: 'actions',
+      align: 'right',
+      srOnlyHeader: true,
+      cell: (c) => (
+        <div className="flex items-center gap-1 md:justify-end">
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => navigate(`/clientes/${c.id}/editar`)}
+              aria-label={`Editar a ${c.nombre}`}
+              title="Editar cliente"
+              className={cn(iconBtn, 'hover:bg-primary-700/10 hover:text-primary-700')}
+            >
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setPendiente(c)}
+            disabled={togglingId === c.id}
+            aria-label={`${c.activo ? 'Desactivar' : 'Activar'} a ${c.nombre}`}
+            title={c.activo ? 'Desactivar' : 'Activar'}
+            className={cn(iconBtn, c.activo ? 'hover:bg-red-50 hover:text-red-600' : 'hover:bg-green-50 hover:text-green-700')}
+          >
+            {c.activo ? <Ban className="h-4 w-4" aria-hidden="true" /> : <CircleCheck className="h-4 w-4" aria-hidden="true" />}
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   return (
-    <div className="animate-fade-in p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div className="animate-fade-in p-4 sm:p-6">
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-primary-700">Clientes</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {isLoading ? '...' : `${clientes.length} cliente${clientes.length !== 1 ? 's' : ''} registrado${clientes.length !== 1 ? 's' : ''}`}
+          <p className="mt-0.5 text-sm text-fg-muted">
+            {isLoading ? '…' : `${clientes.length} cliente${clientes.length !== 1 ? 's' : ''} registrado${clientes.length !== 1 ? 's' : ''}`}
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          {/* Search */}
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
           <div className="relative">
-            <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            </span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" aria-hidden="true" />
             <input
-              type="text"
+              type="search"
+              aria-label="Buscar clientes por nombre"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Buscar por nombre..."
-              className="input-field pl-9 pr-4 w-full sm:w-64"
+              className="input-field w-full pl-9 pr-4 sm:w-64"
             />
           </div>
 
-          <button
-            onClick={() => navigate('/clientes/nuevo')}
-            className="btn-primary flex items-center gap-2 whitespace-nowrap"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <line x1="12" y1="5" x2="12" y2="19" strokeLinecap="round" />
-              <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
-            </svg>
-            Nuevo Cliente
-          </button>
+          {canEdit && (
+            <button type="button" onClick={() => navigate('/clientes/nuevo')} className="btn-primary flex items-center justify-center gap-2 whitespace-nowrap">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Nuevo cliente
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Table */}
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="premium-table w-full">
-            <thead>
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Nombre
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Tipo
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  RUC / DNI
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Teléfono
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {isLoading ? (
-                [...Array(5)].map((_, i) => <SkeletonRow key={i} />)
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>
-                    <EmptyState search={search} />
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((cliente) => (
-                  <tr key={cliente.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900">{cliente.nombre}</div>
-                      {cliente.email && (
-                        <div className="text-xs text-gray-400 mt-0.5">{cliente.email}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          cliente.tipo === 'empresa'
-                            ? 'bg-purple-100 text-purple-700'
-                            : 'bg-sky-100 text-sky-700'
-                        }`}
-                      >
-                        {cliente.tipo === 'empresa' ? 'Empresa' : 'Natural'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {cliente.ruc_dni ?? (
-                        <span className="text-gray-300 italic">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {cliente.telefono ?? (
-                        <span className="text-gray-300 italic">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          cliente.activo
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-100 text-gray-500'
-                        }`}
-                      >
-                        {cliente.activo ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => navigate(`/clientes/${cliente.id}/editar`)}
-                          title="Editar cliente"
-                          className="p-1.5 rounded-md text-gray-500 hover:text-primary-700 hover:bg-primary-700/10 transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                            />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleToggleActivo(cliente)}
-                          disabled={togglingId === cliente.id}
-                          title={cliente.activo ? 'Desactivar' : 'Activar'}
-                          className={`p-1.5 rounded-md transition-colors disabled:opacity-40 ${
-                            cliente.activo
-                              ? 'text-gray-400 hover:text-red-500 hover:bg-red-50'
-                              : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
-                          }`}
-                        >
-                          {cliente.activo ? (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
-                              />
-                            </svg>
-                          ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
-                            </svg>
-                          )}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <DataTable
+        caption="Listado de clientes"
+        columns={columns}
+        rows={filtered}
+        rowKey={(c) => c.id}
+        loading={isLoading}
+        skeletonRows={5}
+        rowClassName={(c) => (c.activo ? undefined : 'bg-muted/60')}
+        empty={
+          search.trim() ? (
+            <EmptyState
+              icon={UserSearch}
+              title="No se encontraron clientes"
+              description={`No hay resultados para «${search}».`}
+              action={
+                <button type="button" className="btn-secondary" onClick={() => setSearchInput('')}>
+                  Limpiar búsqueda
+                </button>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={UserPlus}
+              title="Aún no hay clientes registrados"
+              description={canEdit ? 'Registra el primero para asociarle vehículos, servicios y créditos.' : undefined}
+              action={
+                canEdit ? (
+                  <button type="button" className="btn-primary" onClick={() => navigate('/clientes/nuevo')}>
+                    Nuevo cliente
+                  </button>
+                ) : undefined
+              }
+            />
+          )
+        }
+      />
+
+      <ConfirmDialog
+        open={!!pendiente}
+        onOpenChange={(open) => !open && setPendiente(null)}
+        title={pendiente?.activo ? '¿Desactivar cliente?' : '¿Activar cliente?'}
+        description={pendiente ? `${pendiente.activo ? 'Desactivar' : 'Activar'} a «${pendiente.nombre}».` : undefined}
+        confirmLabel={pendiente?.activo ? 'Desactivar' : 'Activar'}
+        tone={pendiente?.activo ? 'danger' : 'primary'}
+        loading={!!togglingId}
+        onConfirm={() => (pendiente ? handleToggleActivo(pendiente) : undefined)}
+      />
     </div>
   )
 }

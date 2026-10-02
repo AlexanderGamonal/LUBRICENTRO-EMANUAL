@@ -9,6 +9,8 @@ import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { formatCurrency } from '@/shared/utils/formatters'
 import { cn } from '@/shared/utils/cn'
+import { CircleCheck } from 'lucide-react'
+import { Button, EmptyState, Field, FormActions, PageHeader } from '@/shared/ui'
 import type { Database } from '@/shared/types/database'
 
 type ProductoDetalle = Database['public']['Views']['vw_productos_detalle']['Row']
@@ -99,187 +101,128 @@ export function AjusteStockPage() {
 
   if (!producto) {
     return (
-      <div className="p-6 max-w-2xl mx-auto">
-        <div className="card text-center py-12">
-          <p className="text-gray-500">Producto no encontrado</p>
-          <button
-            onClick={() => navigate('/inventario')}
-            className="btn-secondary mt-4"
-          >
-            Volver al Inventario
-          </button>
+      <div className="mx-auto max-w-2xl p-4 sm:p-6">
+        <div className="card">
+          <EmptyState
+            title="Producto no encontrado"
+            description="Puede que haya sido desactivado o que no pertenezca a esta sucursal."
+            action={
+              <Button variant="secondary" onClick={() => navigate('/inventario')}>
+                Volver al inventario
+              </Button>
+            }
+          />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Ajuste de Stock</h1>
-        <button
-          onClick={() => navigate('/inventario')}
-          className="btn-secondary"
-        >
-          Volver
-        </button>
-      </div>
+    <div className="mx-auto max-w-2xl p-4 sm:p-6">
+      <PageHeader back title="Ajuste de stock" />
 
-      {/* Tarjeta del producto */}
-      <div className="card mb-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              {producto.nombre}
-            </h2>
-            {producto.marca && (
-              <p className="text-sm text-gray-500">{producto.marca}</p>
-            )}
-            <p className="text-xs text-gray-400 font-mono mt-1">
-              {producto.codigo_interno}
-            </p>
+      <section className="card mb-5 p-4 sm:p-6" aria-label="Producto a ajustar">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-fg">{producto.nombre}</h2>
+            {producto.marca && <p className="text-sm text-fg-muted">{producto.marca}</p>}
+            <p className="mt-1 font-mono text-xs text-fg-subtle">{producto.codigo_interno}</p>
           </div>
           {producto.ubicacion_codigo && (
-            <span className="font-mono text-xs bg-blue-50 text-primary-700 px-2 py-1 rounded">
-              {producto.ubicacion_codigo}
-            </span>
+            <span className="flex-shrink-0 rounded bg-blue-50 px-2 py-1 font-mono text-xs text-primary-700">{producto.ubicacion_codigo}</span>
           )}
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-100">
+        <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-4 sm:gap-4">
           <div>
-            <p className="text-xs text-gray-500">Stock Actual</p>
-            <p
+            <dt className="text-xs text-fg-muted">Stock actual</dt>
+            <dd
               className={cn(
-                'text-2xl font-bold mt-0.5',
-                producto.stock_actual === 0
-                  ? 'text-red-600'
-                  : producto.stock_actual <= producto.stock_minimo
-                  ? 'text-yellow-600'
-                  : 'text-green-600',
+                'mt-0.5 text-2xl font-bold',
+                producto.stock_actual === 0 ? 'text-red-700' : producto.stock_actual <= producto.stock_minimo ? 'text-yellow-700' : 'text-green-700',
               )}
             >
               {producto.stock_actual}
-            </p>
+            </dd>
           </div>
           <div>
-            <p className="text-xs text-gray-500">Stock Mínimo</p>
-            <p className="text-2xl font-bold text-gray-900 mt-0.5">
-              {producto.stock_minimo}
-            </p>
+            <dt className="text-xs text-fg-muted">Stock mínimo</dt>
+            <dd className="mt-0.5 text-2xl font-bold text-fg">{producto.stock_minimo}</dd>
           </div>
           <div>
-            <p className="text-xs text-gray-500">Precio Venta</p>
-            <p className="text-2xl font-bold text-gray-900 mt-0.5">
-              {formatCurrency(producto.precio_venta)}
-            </p>
+            <dt className="text-xs text-fg-muted">Precio venta</dt>
+            <dd className="mt-0.5 text-lg font-bold text-fg sm:text-2xl">{formatCurrency(producto.precio_venta)}</dd>
           </div>
-        </div>
-      </div>
+        </dl>
+      </section>
 
-      {/* Resultado del ajuste */}
       {resultado && (
-        <div className="card bg-green-50 border border-green-200 mb-6">
+        <div role="status" className="card mb-5 border border-green-200 bg-green-50 p-4 sm:p-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-              <svg
-                className="w-5 h-5 text-green-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-green-100 text-green-700">
+              <CircleCheck className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
-              <p className="font-semibold text-green-800">
-                Stock ajustado exitosamente
-              </p>
+              <p className="font-semibold text-green-800">Stock ajustado exitosamente</p>
               <p className="text-sm text-green-700">
-                Stock anterior:{' '}
-                <span className="font-bold">{resultado.stock_anterior}</span>
+                Stock anterior: <span className="font-bold">{resultado.stock_anterior}</span>
                 {' → '}
-                Stock nuevo:{' '}
-                <span className="font-bold">{resultado.stock_nuevo}</span>
+                Stock nuevo: <span className="font-bold">{resultado.stock_nuevo}</span>
               </p>
             </div>
           </div>
           <div className="mt-4 flex gap-3">
-            <button
-              onClick={() => navigate('/inventario')}
-              className="btn-primary flex-1"
-            >
-              Ver Inventario
-            </button>
-            <button
-              onClick={() => setResultado(null)}
-              className="btn-secondary flex-1"
-            >
-              Otro Ajuste
-            </button>
+            <Button className="flex-1" onClick={() => navigate('/inventario')}>
+              Ver inventario
+            </Button>
+            <Button variant="secondary" className="flex-1" onClick={() => setResultado(null)}>
+              Otro ajuste
+            </Button>
           </div>
         </div>
       )}
 
-      {/* Formulario */}
       {!resultado && (
-        <form onSubmit={handleSubmit(onSubmit)} className="card space-y-5">
-          <h2 className="text-base font-semibold text-gray-800">
-            Ingresar Ajuste
-          </h2>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate>
+          <div className="card space-y-5 p-4 sm:p-6">
+            <h2 className="text-base font-semibold text-fg">Ingresar ajuste</h2>
 
-          <div>
-            <label className="label-text">Nuevo Stock *</label>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              {...register('nuevo_stock', { valueAsNumber: true })}
-              className="input-field max-w-xs"
-              placeholder={String(producto.stock_actual)}
-            />
-            {errors.nuevo_stock && (
-              <p className="error-text">{errors.nuevo_stock.message}</p>
-            )}
-            <p className="text-xs text-gray-400 mt-1">
-              Stock actual: {producto.stock_actual}
-            </p>
+            <Field label="Nuevo stock" required error={errors.nuevo_stock?.message} hint={`Stock actual: ${producto.stock_actual}`} className="sm:max-w-xs">
+              {(p) => (
+                <input
+                  {...p}
+                  type="number"
+                  inputMode="numeric"
+                  min="0"
+                  step="1"
+                  {...register('nuevo_stock', { valueAsNumber: true })}
+                  className="input-field"
+                  placeholder={String(producto.stock_actual)}
+                />
+              )}
+            </Field>
+
+            <Field label="Motivo del ajuste" required error={errors.motivo?.message}>
+              {(p) => (
+                <textarea
+                  {...p}
+                  {...register('motivo')}
+                  rows={3}
+                  className="input-field resize-none"
+                  placeholder="Describe el motivo del ajuste (mínimo 10 caracteres)..."
+                />
+              )}
+            </Field>
           </div>
 
-          <div>
-            <label className="label-text">Motivo del Ajuste *</label>
-            <textarea
-              {...register('motivo')}
-              rows={3}
-              className="input-field resize-none"
-              placeholder="Describe el motivo del ajuste (mínimo 10 caracteres)..."
-            />
-            {errors.motivo && (
-              <p className="error-text">{errors.motivo.message}</p>
-            )}
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => navigate('/inventario')}
-              className="btn-secondary flex-1"
-            >
+          <FormActions align="end">
+            <Button variant="secondary" onClick={() => navigate('/inventario')} disabled={isSubmitting}>
               Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="btn-primary flex-1"
-            >
-              {isSubmitting ? 'Ajustando...' : 'Confirmar Ajuste'}
-            </button>
-          </div>
+            </Button>
+            <Button type="submit" loading={isSubmitting}>
+              {isSubmitting ? 'Ajustando…' : 'Confirmar ajuste'}
+            </Button>
+          </FormActions>
         </form>
       )}
     </div>

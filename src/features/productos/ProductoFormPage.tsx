@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { Button, Field, FormActions, PageHeader, Skeleton } from '@/shared/ui'
 import { useProductoMutations } from './hooks/useProductos'
 import { productoSchema, type ProductoFormData } from './schemas/productoSchema'
 import type { Database } from '@/shared/types/database'
@@ -267,10 +268,10 @@ export function ProductoFormPage({ mode }: ProductoFormPageProps) {
 
   if (mode === 'edit' && loadingProducto) {
     return (
-      <div className="p-6 max-w-3xl mx-auto">
+      <div className="mx-auto max-w-3xl p-4 sm:p-6" aria-busy="true">
         <div className="space-y-4">
           {[1, 2, 3, 4, 5].map((n) => (
-            <div key={n} className="h-10 bg-gray-200 rounded animate-pulse" />
+            <Skeleton key={n} className="h-10 w-full" />
           ))}
         </div>
       </div>
@@ -278,313 +279,220 @@ export function ProductoFormPage({ mode }: ProductoFormPageProps) {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
-          {mode === 'create' ? 'Nuevo Producto' : 'Editar Producto'}
-        </h1>
-        <button
-          type="button"
-          onClick={() => navigate('/productos')}
-          className="btn-secondary"
-        >
-          Cancelar
-        </button>
-      </div>
+    <div className="mx-auto max-w-3xl p-4 sm:p-6">
+      <PageHeader back title={mode === 'create' ? 'Nuevo producto' : 'Editar producto'} />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* Sección: Identificación */}
-        <div className="card">
-          <h2 className="text-base font-semibold text-gray-800 mb-4">
-            Identificación
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="label-text">Código Interno *</label>
-              <input
-                {...register('codigo_interno')}
-                className="input-field"
-                placeholder="Ej. PRD-001"
-              />
-              {errors.codigo_interno && (
-                <p className="error-text">{errors.codigo_interno.message}</p>
-              )}
+      <form onSubmit={handleSubmit(onSubmit)} noValidate>
+        <div className="space-y-5">
+          <section className="card p-4 sm:p-6" aria-labelledby="sec-ident">
+            <h2 id="sec-ident" className="mb-4 text-base font-semibold text-fg">
+              Identificación
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Código interno" required error={errors.codigo_interno?.message}>
+                {(p) => <input {...p} {...register('codigo_interno')} className="input-field" placeholder="Ej. PRD-001" autoComplete="off" />}
+              </Field>
+              <Field label="Código de barras">
+                {(p) => (
+                  <input {...p} {...register('codigo_barras')} inputMode="numeric" className="input-field" placeholder="Ej. 7891234567890" autoComplete="off" />
+                )}
+              </Field>
             </div>
-            <div>
-              <label className="label-text">Código de Barras</label>
-              <input
-                {...register('codigo_barras')}
-                className="input-field"
-                placeholder="Ej. 7891234567890"
-              />
-            </div>
-          </div>
-          <div className="mt-3 flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="tiene_codigo_barras"
-              {...register('tiene_codigo_barras')}
-              className="rounded border-gray-300"
-            />
-            <label htmlFor="tiene_codigo_barras" className="text-sm text-gray-700">
+            <label htmlFor="tiene_codigo_barras" className="mt-4 flex min-h-touch cursor-pointer items-center gap-2.5 text-sm text-fg-muted md:min-h-0">
+              <input type="checkbox" id="tiene_codigo_barras" {...register('tiene_codigo_barras')} className="h-4 w-4 rounded border-line" />
               Tiene código de barras físico
             </label>
-          </div>
-        </div>
+          </section>
 
-        {/* Sección: Datos del Producto */}
-        <div className="card">
-          <h2 className="text-base font-semibold text-gray-800 mb-4">
-            Datos del Producto
-          </h2>
-          <div className="space-y-4">
-            <div>
-              <label className="label-text">Nombre *</label>
-              <input
-                {...register('nombre')}
-                className="input-field"
-                placeholder="Ej. Aceite Mobil 20W-50 1L"
-              />
-              {errors.nombre && (
-                <p className="error-text">{errors.nombre.message}</p>
-              )}
+          <section className="card p-4 sm:p-6" aria-labelledby="sec-datos">
+            <h2 id="sec-datos" className="mb-4 text-base font-semibold text-fg">
+              Datos del producto
+            </h2>
+            <div className="space-y-4">
+              <Field label="Nombre" required error={errors.nombre?.message}>
+                {(p) => <input {...p} {...register('nombre')} className="input-field" placeholder="Ej. Aceite Mobil 20W-50 1L" autoComplete="off" />}
+              </Field>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Marca">
+                  {(p) => <input {...p} {...register('marca')} className="input-field" placeholder="Ej. Mobil" autoComplete="off" />}
+                </Field>
+                <Field label="Viscosidad / especificación">
+                  {(p) => <input {...p} {...register('viscosidad_especificacion')} className="input-field" placeholder="Ej. 20W-50, API SL" autoComplete="off" />}
+                </Field>
+              </div>
+              <Field label="Categoría">
+                {(p) => (
+                  <select {...p} {...register('categoria_id')} className="input-field">
+                    <option value="">Sin categoría</option>
+                    {categorias?.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nombre}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          </section>
+
+          <section className="card p-4 sm:p-6" aria-labelledby="sec-ubic">
+            <h2 id="sec-ubic" className="mb-4 text-base font-semibold text-fg">
+              Ubicación en almacén
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Field label="Zona">
+                {(p) => (
+                  <select
+                    {...p}
+                    value={zona}
+                    onChange={(e) => {
+                      setZona(e.target.value)
+                      setEstante('')
+                      setNivelSel('')
+                    }}
+                    className="input-field"
+                  >
+                    <option value="">Sin zona</option>
+                    {zonas.map((z) => (
+                      <option key={z} value={z}>
+                        Zona {z}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+              <Field label="Estante">
+                {(p) => (
+                  <select
+                    {...p}
+                    value={estante}
+                    onChange={(e) => {
+                      setEstante(e.target.value)
+                      setNivelSel('')
+                    }}
+                    className="input-field"
+                    disabled={!zona}
+                  >
+                    <option value="">—</option>
+                    {estantes.map((e) => (
+                      <option key={e} value={String(e)}>
+                        Estante {e}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+              <Field label="Nivel">
+                {(p) => (
+                  <select {...p} value={nivelSel} onChange={(e) => setNivelSel(e.target.value)} className="input-field" disabled={!estante}>
+                    <option value="">—</option>
+                    {niveles.map((u) => (
+                      <option key={u.id} value={String(u.nivel)}>
+                        Nivel {u.nivel} ({u.codigo})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+            </div>
+          </section>
+
+          <section className="card p-4 sm:p-6" aria-labelledby="sec-precios">
+            <h2 id="sec-precios" className="mb-4 text-base font-semibold text-fg">
+              Precios y stock
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Field label="Precio de venta (S/)" required error={errors.precio_venta?.message}>
+                {(p) => (
+                  <input
+                    {...p}
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    {...register('precio_venta', { valueAsNumber: true })}
+                    className="input-field"
+                    placeholder="0.00"
+                  />
+                )}
+              </Field>
+              <Field label="Costo (S/)">
+                {(p) => (
+                  <input
+                    {...p}
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    {...register('costo', { valueAsNumber: true })}
+                    className="input-field"
+                    placeholder="0.00"
+                  />
+                )}
+              </Field>
+              <Field label="Stock mínimo">
+                {(p) => (
+                  <input {...p} type="number" inputMode="numeric" min="0" step="1" {...register('stock_minimo', { valueAsNumber: true })} className="input-field" placeholder="0" />
+                )}
+              </Field>
+            </div>
+            {mode === 'create' && (
+              <Field label="Stock inicial" hint="Se registrará como movimiento de entrada" className="mt-4 sm:max-w-xs">
+                {(p) => (
+                  <input {...p} type="number" inputMode="numeric" min="0" step="1" {...register('stock_inicial', { valueAsNumber: true })} className="input-field" placeholder="0" />
+                )}
+              </Field>
+            )}
+          </section>
+
+          <section className="card p-4 sm:p-6" aria-labelledby="sec-foto">
+            <h2 id="sec-foto" className="mb-4 text-base font-semibold text-fg">
+              Foto del producto
+            </h2>
+            <div className="flex items-start gap-4">
+              {fotoPreview ? (
+                <img src={fotoPreview} alt="Vista previa del producto" className="h-24 w-24 rounded-lg border border-line object-cover" />
+              ) : (
+                <div className="flex h-24 w-24 items-center justify-center rounded-lg border border-line bg-muted text-center text-xs text-fg-subtle">Sin foto</div>
+              )}
               <div>
-                <label className="label-text">Marca</label>
+                <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                  {fotoPreview ? 'Cambiar foto' : 'Subir foto'}
+                </Button>
+                <p className="mt-1 text-xs text-fg-subtle">JPG, PNG o WEBP. Máx 2MB.</p>
                 <input
-                  {...register('marca')}
-                  className="input-field"
-                  placeholder="Ej. Mobil"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleFotoChange}
+                  className="hidden"
+                  aria-label="Seleccionar foto del producto"
                 />
               </div>
-              <div>
-                <label className="label-text">Viscosidad / Especificación</label>
-                <input
-                  {...register('viscosidad_especificacion')}
-                  className="input-field"
-                  placeholder="Ej. 20W-50, API SL"
-                />
-              </div>
             </div>
-            <div>
-              <label className="label-text">Categoría</label>
-              <select {...register('categoria_id')} className="input-field">
-                <option value="">Sin categoría</option>
-                {categorias?.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
+          </section>
 
-        {/* Sección: Ubicación en almacén */}
-        <div className="card">
-          <h2 className="text-base font-semibold text-gray-800 mb-4">
-            Ubicación en Almacén
-          </h2>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="label-text">Zona</label>
-              <select
-                value={zona}
-                onChange={(e) => {
-                  setZona(e.target.value)
-                  setEstante('')
-                  setNivelSel('')
-                }}
-                className="input-field"
-              >
-                <option value="">Sin zona</option>
-                {zonas.map((z) => (
-                  <option key={z} value={z}>
-                    Zona {z}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label-text">Estante</label>
-              <select
-                value={estante}
-                onChange={(e) => {
-                  setEstante(e.target.value)
-                  setNivelSel('')
-                }}
-                className="input-field"
-                disabled={!zona}
-              >
-                <option value="">—</option>
-                {estantes.map((e) => (
-                  <option key={e} value={String(e)}>
-                    Estante {e}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label-text">Nivel</label>
-              <select
-                value={nivelSel}
-                onChange={(e) => setNivelSel(e.target.value)}
-                className="input-field"
-                disabled={!estante}
-              >
-                <option value="">—</option>
-                {niveles.map((u) => (
-                  <option key={u.id} value={String(u.nivel)}>
-                    Nivel {u.nivel} ({u.codigo})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Sección: Precios y Stock */}
-        <div className="card">
-          <h2 className="text-base font-semibold text-gray-800 mb-4">
-            Precios y Stock
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="label-text">Precio de Venta (S/.) *</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                {...register('precio_venta', { valueAsNumber: true })}
-                className="input-field"
-                placeholder="0.00"
-              />
-              {errors.precio_venta && (
-                <p className="error-text">{errors.precio_venta.message}</p>
-              )}
-            </div>
-            <div>
-              <label className="label-text">Costo (S/.)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                {...register('costo', { valueAsNumber: true })}
-                className="input-field"
-                placeholder="0.00"
-              />
-            </div>
-            <div>
-              <label className="label-text">Stock Mínimo</label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                {...register('stock_minimo', { valueAsNumber: true })}
-                className="input-field"
-                placeholder="0"
-              />
-            </div>
-          </div>
-          {mode === 'create' && (
-            <div className="mt-4">
-              <label className="label-text">Stock Inicial</label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                {...register('stock_inicial', { valueAsNumber: true })}
-                className="input-field max-w-xs"
-                placeholder="0"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Se registrará como movimiento de entrada
-              </p>
-            </div>
+          {mode === 'edit' && (
+            <section className="card p-4 sm:p-6" aria-labelledby="sec-estado">
+              <h2 id="sec-estado" className="mb-4 text-base font-semibold text-fg">
+                Estado
+              </h2>
+              <label htmlFor="activo" className="flex min-h-touch cursor-pointer items-center gap-2.5 text-sm text-fg-muted md:min-h-0">
+                <input type="checkbox" id="activo" {...register('activo')} className="h-4 w-4 rounded border-line" />
+                Producto activo (visible en ventas y búsquedas)
+              </label>
+            </section>
           )}
         </div>
 
-        {/* Sección: Foto */}
-        <div className="card">
-          <h2 className="text-base font-semibold text-gray-800 mb-4">
-            Foto del Producto
-          </h2>
-          <div className="flex items-start gap-4">
-            {fotoPreview ? (
-              <img
-                src={fotoPreview}
-                alt="Vista previa"
-                className="w-24 h-24 object-cover rounded-lg border border-gray-200"
-              />
-            ) : (
-              <div className="w-24 h-24 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center text-gray-400 text-xs text-center">
-                Sin foto
-              </div>
-            )}
-            <div>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="btn-secondary text-sm"
-              >
-                {fotoPreview ? 'Cambiar foto' : 'Subir foto'}
-              </button>
-              <p className="text-xs text-gray-400 mt-1">
-                JPG, PNG o WEBP. Máx 2MB.
-              </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handleFotoChange}
-                className="hidden"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Estado (solo en edición) */}
-        {mode === 'edit' && (
-          <div className="card">
-            <h2 className="text-base font-semibold text-gray-800 mb-4">
-              Estado
-            </h2>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="activo"
-                {...register('activo')}
-                className="rounded border-gray-300"
-              />
-              <label htmlFor="activo" className="text-sm text-gray-700">
-                Producto activo (visible en ventas y búsquedas)
-              </label>
-            </div>
-          </div>
-        )}
-
-        {/* Botones */}
-        <div className="flex gap-3 justify-end">
-          <button
-            type="button"
-            onClick={() => navigate('/productos')}
-            className="btn-secondary"
-          >
+        <FormActions align="end">
+          <Button variant="secondary" onClick={() => navigate('/productos')} disabled={isBusy}>
             Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={isBusy}
-            className="btn-primary min-w-[140px]"
-          >
-            {isBusy
-              ? 'Guardando...'
-              : mode === 'create'
-              ? 'Crear Producto'
-              : 'Guardar Cambios'}
-          </button>
-        </div>
+          </Button>
+          <Button type="submit" loading={isBusy} className="sm:min-w-[140px]">
+            {isBusy ? 'Guardando…' : mode === 'create' ? 'Crear producto' : 'Guardar cambios'}
+          </Button>
+        </FormActions>
       </form>
     </div>
   )

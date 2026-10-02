@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useDebounce } from '@/shared/hooks/useDebounce'
-import { formatCurrency, formatDate } from '@/shared/utils/formatters'
+import { formatCurrency, formatDate, hoyLima } from '@/shared/utils/formatters'
 import { cn } from '@/shared/utils/cn'
 import type { Database } from '@/shared/types/database'
 
@@ -90,7 +90,7 @@ export default function NuevoServicioPage() {
   } = useForm<ServicioFormValues>({
     resolver: zodResolver(servicioSchema),
     defaultValues: {
-      fecha_servicio: new Date().toISOString().split('T')[0],
+      fecha_servicio: hoyLima(),
       kilometraje: null,
       descripcion: '',
       observaciones: '',

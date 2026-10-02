@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { formatCurrency } from '@/shared/utils/formatters'
+import { diasAtrasLima, formatCurrency, hoyLima, inicioMesLima } from '@/shared/utils/formatters'
 import { Link } from 'react-router-dom'
 import { useState } from 'react'
 import { cn } from '@/shared/utils/cn'
@@ -13,17 +13,9 @@ type GananciasServiciosRow = Database['public']['Views']['vw_ganancias_servicios
 type Periodo = 'hoy' | 'semana' | 'mes'
 
 function fechaDesde(periodo: Periodo): string {
-  const d = new Date()
-  if (periodo === 'hoy') {
-    d.setHours(0, 0, 0, 0)
-  } else if (periodo === 'semana') {
-    d.setDate(d.getDate() - 7)
-    d.setHours(0, 0, 0, 0)
-  } else {
-    d.setDate(1)
-    d.setHours(0, 0, 0, 0)
-  }
-  return d.toISOString().split('T')[0]
+  if (periodo === 'hoy') return hoyLima()
+  if (periodo === 'semana') return diasAtrasLima(7)
+  return inicioMesLima()
 }
 
 const PERIODOS: { key: Periodo; label: string }[] = [

@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { Button, Field, FormActions, PageHeader, RadioCardGroup, Skeleton } from '@/shared/ui'
 
 const clienteSchema = z
   .object({
@@ -154,13 +155,13 @@ export default function ClienteFormPage() {
 
   if (isEdit && loadingCliente) {
     return (
-      <div className="animate-fade-in p-6 max-w-2xl mx-auto">
-        <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-6" />
-        <div className="card p-6 space-y-4">
+      <div className="mx-auto max-w-2xl animate-fade-in p-4 sm:p-6" aria-busy="true">
+        <Skeleton className="mb-6 h-8 w-48" />
+        <div className="card space-y-4 p-6">
           {[...Array(5)].map((_, i) => (
             <div key={i}>
-              <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-2" />
-              <div className="h-10 bg-gray-100 rounded animate-pulse" />
+              <Skeleton className="mb-2 h-4 w-24" />
+              <Skeleton className="h-10 w-full" />
             </div>
           ))}
         </div>
@@ -169,184 +170,83 @@ export default function ClienteFormPage() {
   }
 
   return (
-    <div className="animate-fade-in p-6 max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-primary-700 mb-4 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Volver
-        </button>
-        <h1 className="text-2xl font-bold text-primary-700">
-          {isEdit ? 'Editar Cliente' : 'Nuevo Cliente'}
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {isEdit
-            ? 'Modifica los datos del cliente'
-            : 'Completa los datos para registrar un nuevo cliente'}
-        </p>
-      </div>
+    <div className="mx-auto max-w-2xl animate-fade-in p-4 sm:p-6">
+      <PageHeader
+        back
+        title={isEdit ? 'Editar cliente' : 'Nuevo cliente'}
+        description={isEdit ? 'Modifica los datos del cliente' : 'Completa los datos para registrar un nuevo cliente'}
+      />
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
-        <div className="card p-6 space-y-5">
-          {/* Nombre */}
-          <div>
-            <label className="label-text">
-              Nombre <span className="text-red-500">*</span>
-            </label>
-            <input
-              {...register('nombre')}
-              type="text"
-              className="input-field"
-              placeholder="Nombre completo o razón social"
-              autoFocus
-            />
-            {errors.nombre && (
-              <p className="error-text mt-1">{errors.nombre.message}</p>
+        <div className="card space-y-5 p-4 sm:p-6">
+          <Field label="Nombre" required error={errors.nombre?.message}>
+            {(p) => (
+              <input
+                {...p}
+                {...register('nombre')}
+                type="text"
+                autoComplete="off"
+                className="input-field"
+                placeholder="Nombre completo o razón social"
+                autoFocus
+              />
             )}
-          </div>
+          </Field>
 
-          {/* Tipo */}
-          <div>
-            <label className="label-text">
-              Tipo de cliente <span className="text-red-500">*</span>
-            </label>
-            <Controller
-              name="tipo"
-              control={control}
-              render={({ field }) => (
-                <div className="flex gap-4 mt-2">
-                  {(['natural', 'empresa'] as const).map((tipo) => (
-                    <label
-                      key={tipo}
-                      className={`flex items-center gap-2.5 cursor-pointer px-4 py-2.5 rounded-lg border-2 transition-all ${
-                        field.value === tipo
-                          ? 'border-primary-700 bg-primary-700/5 text-primary-700'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        value={tipo}
-                        checked={field.value === tipo}
-                        onChange={() => field.onChange(tipo)}
-                        className="sr-only"
-                      />
-                      <span
-                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                          field.value === tipo ? 'border-primary-700' : 'border-gray-300'
-                        }`}
-                      >
-                        {field.value === tipo && (
-                          <span className="w-2 h-2 rounded-full bg-primary-700" />
-                        )}
-                      </span>
-                      <span className="font-medium capitalize">
-                        {tipo === 'natural' ? 'Persona Natural' : 'Empresa'}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            />
-          </div>
-
-          {/* RUC / DNI */}
-          <div>
-            <label className="label-text">
-              {tipoActual === 'empresa' ? 'RUC (11 dígitos)' : 'DNI (8 dígitos)'}
-            </label>
-            <input
-              {...register('ruc_dni')}
-              type="text"
-              inputMode="numeric"
-              maxLength={tipoActual === 'empresa' ? 11 : 8}
-              className="input-field"
-              placeholder={tipoActual === 'empresa' ? '20XXXXXXXXX' : '12345678'}
-            />
-            {errors.ruc_dni && (
-              <p className="error-text mt-1">{errors.ruc_dni.message}</p>
+          <Controller
+            name="tipo"
+            control={control}
+            render={({ field }) => (
+              <RadioCardGroup
+                legend="Tipo de cliente"
+                required
+                value={field.value}
+                onChange={field.onChange}
+                options={[
+                  { value: 'natural', label: 'Persona natural' },
+                  { value: 'empresa', label: 'Empresa' },
+                ]}
+              />
             )}
-          </div>
+          />
 
-          {/* Teléfono */}
-          <div>
-            <label className="label-text">Teléfono</label>
-            <input
-              {...register('telefono')}
-              type="tel"
-              className="input-field"
-              placeholder="9XXXXXXXX"
-            />
-            {errors.telefono && (
-              <p className="error-text mt-1">{errors.telefono.message}</p>
+          <Field label={tipoActual === 'empresa' ? 'RUC (11 dígitos)' : 'DNI (8 dígitos)'} error={errors.ruc_dni?.message}>
+            {(p) => (
+              <input
+                {...p}
+                {...register('ruc_dni')}
+                type="text"
+                inputMode="numeric"
+                maxLength={tipoActual === 'empresa' ? 11 : 8}
+                className="input-field"
+                placeholder={tipoActual === 'empresa' ? '20XXXXXXXXX' : '12345678'}
+              />
             )}
-          </div>
+          </Field>
 
-          {/* Email */}
-          <div>
-            <label className="label-text">Correo electrónico</label>
-            <input
-              {...register('email')}
-              type="email"
-              className="input-field"
-              placeholder="cliente@ejemplo.com"
-            />
-            {errors.email && (
-              <p className="error-text mt-1">{errors.email.message}</p>
-            )}
-          </div>
+          <Field label="Teléfono" error={errors.telefono?.message}>
+            {(p) => <input {...p} {...register('telefono')} type="tel" inputMode="tel" autoComplete="off" className="input-field" placeholder="9XXXXXXXX" />}
+          </Field>
 
-          {/* Dirección */}
-          <div>
-            <label className="label-text">Dirección</label>
-            <input
-              {...register('direccion')}
-              type="text"
-              className="input-field"
-              placeholder="Av. Ejemplo 123, Ciudad"
-            />
-            {errors.direccion && (
-              <p className="error-text mt-1">{errors.direccion.message}</p>
+          <Field label="Correo electrónico" error={errors.email?.message}>
+            {(p) => (
+              <input {...p} {...register('email')} type="email" inputMode="email" autoComplete="off" className="input-field" placeholder="cliente@ejemplo.com" />
             )}
-          </div>
+          </Field>
+
+          <Field label="Dirección" error={errors.direccion?.message}>
+            {(p) => <input {...p} {...register('direccion')} type="text" autoComplete="off" className="input-field" placeholder="Av. Ejemplo 123, Ciudad" />}
+          </Field>
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="btn-secondary flex-1 sm:flex-none sm:w-32"
-            disabled={isSubmitting}
-          >
+        <FormActions>
+          <Button variant="secondary" onClick={() => navigate(-1)} disabled={isSubmitting} className="sm:w-32">
             Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="flex-1 py-2.5 px-6 text-white font-semibold rounded-lg transition-opacity disabled:opacity-60 flex items-center justify-center gap-2"
-            style={{ background: 'linear-gradient(135deg, #1F3864, #0ea5e9)' }}
-          >
-            {isSubmitting ? (
-              <>
-                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                Guardando...
-              </>
-            ) : isEdit ? (
-              'Guardar cambios'
-            ) : (
-              'Crear cliente'
-            )}
-          </button>
-        </div>
+          </Button>
+          <Button type="submit" loading={isSubmitting} className="sm:px-6">
+            {isSubmitting ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Crear cliente'}
+          </Button>
+        </FormActions>
       </form>
     </div>
   )

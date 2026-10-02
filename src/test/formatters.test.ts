@@ -1,8 +1,12 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi, afterEach } from "vitest"
 import {
+  diasAtrasLima,
+  fechaLima,
   formatCurrency,
   formatDate,
   formatStock,
+  hoyLima,
+  inicioMesLima,
   formatRolUsuario,
   formatMedioPago,
 } from "@/shared/utils/formatters"
@@ -87,5 +91,35 @@ describe("formatMedioPago", () => {
   })
   it("retorna el string original para medios desconocidos", () => {
     expect(formatMedioPago("bitcoin")).toBe("bitcoin")
+  })
+})
+
+
+describe('fechas en hora de Lima (UTC-5)', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('a las 22:00 en Lima sigue siendo el mismo día (en UTC ya es el siguiente)', () => {
+    // 2026-10-03T03:00:00Z = 2026-10-02 22:00 en Lima
+    expect(fechaLima(new Date('2026-10-03T03:00:00Z'))).toBe('2026-10-02')
+    expect(new Date('2026-10-03T03:00:00Z').toISOString().split('T')[0]).toBe('2026-10-03') // el bug anterior
+  })
+
+  it('cambia de día a la medianoche de Lima, no a la de UTC', () => {
+    expect(fechaLima(new Date('2026-10-02T04:59:59Z'))).toBe('2026-10-01')
+    expect(fechaLima(new Date('2026-10-02T05:00:00Z'))).toBe('2026-10-02')
+  })
+
+  it('hoyLima, diasAtrasLima e inicioMesLima parten de la fecha de Lima', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-03-01T03:30:00Z')) // 28-feb 22:30 en Lima
+    expect(hoyLima()).toBe('2026-02-28')
+    expect(diasAtrasLima(7)).toBe('2026-02-21')
+    expect(inicioMesLima()).toBe('2026-02-01')
+  })
+
+  it('diasAtrasLima cruza fin de mes y de año correctamente', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-03T12:00:00Z'))
+    expect(diasAtrasLima(7)).toBe('2025-12-27')
   })
 })

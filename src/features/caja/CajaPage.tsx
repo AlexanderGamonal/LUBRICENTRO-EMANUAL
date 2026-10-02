@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { formatCurrency, formatDate, formatDateTime } from '@/shared/utils/formatters'
+import { formatCurrency, formatDate, formatDateTime, hoyLima } from '@/shared/utils/formatters'
 import type { Database } from '@/shared/types/database'
 
 type CajaRow = Database['public']['Tables']['cajas']['Row']
@@ -187,7 +187,7 @@ export default function CajaPage() {
     }
   }
 
-  const today = new Date().toISOString()
+  const today = hoyLima()
   const resumenLoading = loadingVentas || loadingServicios
   const totalTurno = (ventasResumen?.total ?? 0) + (serviciosResumen?.total ?? 0)
 
