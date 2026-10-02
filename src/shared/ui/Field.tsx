@@ -17,6 +17,8 @@ interface FieldProps {
   /** Mensaje de error (se anuncia a lectores de pantalla y marca el campo como inválido). */
   error?: string
   className?: string
+  /** Oculta la etiqueta visualmente (sigue disponible para lectores de pantalla). */
+  hideLabel?: boolean
   /** Recibe las props de accesibilidad que hay que esparcir en el control: `<input {...p} />`. */
   children: (control: FieldControlProps) => ReactNode
 }
@@ -25,7 +27,7 @@ interface FieldProps {
  * Etiqueta + control + ayuda/error correctamente enlazados (htmlFor, aria-describedby, aria-invalid).
  * Tocar la etiqueta enfoca el campo, y los lectores de pantalla leen la etiqueta y el error.
  */
-export function Field({ label, required, hint, error, className, children }: FieldProps) {
+export function Field({ label, required, hint, error, className, hideLabel, children }: FieldProps) {
   const uid = useId()
   const id = `f-${uid}`
   const hintId = hint ? `${id}-hint` : undefined
@@ -34,7 +36,7 @@ export function Field({ label, required, hint, error, className, children }: Fie
 
   return (
     <div className={className}>
-      <label htmlFor={id} className="label-text">
+      <label htmlFor={id} className={hideLabel ? 'sr-only' : 'label-text'}>
         {label}
         {required && (
           <span aria-hidden="true" className="ml-0.5 text-red-600">

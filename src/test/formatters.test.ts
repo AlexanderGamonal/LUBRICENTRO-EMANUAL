@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
 import {
   diasAtrasLima,
+  fechaLargaLima,
   fechaLima,
+  horaLima,
   formatCurrency,
   formatDate,
   formatStock,
@@ -121,5 +123,17 @@ describe('fechas en hora de Lima (UTC-5)', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-03T12:00:00Z'))
     expect(diasAtrasLima(7)).toBe('2025-12-27')
+  })
+})
+
+describe('horaLima / fechaLargaLima', () => {
+  it('usa la hora de Lima aunque el dispositivo esté en otra zona', () => {
+    expect(horaLima(new Date('2026-10-03T03:00:00Z'))).toBe(22) // 22:00 en Lima
+    expect(horaLima(new Date('2026-10-02T05:00:00Z'))).toBe(0)  // medianoche en Lima
+    expect(horaLima(new Date('2026-10-02T17:30:00Z'))).toBe(12)
+  })
+
+  it('la fecha larga corresponde al día de Lima', () => {
+    expect(fechaLargaLima(new Date('2026-10-03T03:00:00Z'))).toContain('2 de octubre')
   })
 })

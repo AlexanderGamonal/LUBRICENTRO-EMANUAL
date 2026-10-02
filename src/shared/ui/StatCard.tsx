@@ -28,13 +28,15 @@ interface StatCardProps {
   tone?: StatTone
   /** Muestra un esqueleto en lugar del valor. */
   loading?: boolean
+  /** En móvil apila ícono y texto (para grillas de 2 columnas). */
+  stackOnMobile?: boolean
   className?: string
 }
 
 /** Tarjeta de métrica: ícono con color según significado, etiqueta, valor y nota. */
-export function StatCard({ label, value, hint, icon: Icon, tone = 'neutral', loading, className }: StatCardProps) {
+export function StatCard({ label, value, hint, icon: Icon, tone = 'neutral', loading, stackOnMobile, className }: StatCardProps) {
   return (
-    <div className={cn('card flex items-start gap-3 p-4 sm:p-5', className)}>
+    <div className={cn('card flex items-start gap-3 p-4 sm:p-5', stackOnMobile && 'flex-col gap-2 sm:flex-row sm:gap-3', className)}>
       <div className={ICON_TONE[tone]} aria-hidden="true">
         <Icon className="h-5 w-5" />
       </div>

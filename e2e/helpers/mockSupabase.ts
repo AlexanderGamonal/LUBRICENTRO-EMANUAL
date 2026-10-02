@@ -30,7 +30,10 @@ export async function mockSupabase(
   page: Page,
   rol: MockRol = 'admin',
   tables: Record<string, unknown[]> = {},
+  /** Respuestas de funciones RPC por nombre, p. ej. { crear_venta: { venta_id: 'abc' } }. */
+  rpc: Record<string, unknown> = {},
 ) {
+  const rpcCalls: { name: string; body: Record<string, unknown> }[] = []
   const session = {
     access_token: fakeJwt(),
     refresh_token: 'mock-refresh',
@@ -50,6 +53,15 @@ export async function mockSupabase(
   await page.route(/mock\.supabase\.co\/rest\/v1\//, async (route) => {
     const url = new URL(route.request().url())
     const table = url.pathname.split('/').pop() ?? ''
+    if (url.pathname.includes('/rest/v1/rpc/')) {
+      rpcCalls.push({ name: table, body: route.request().postDataJSON() as Record<string, unknown> })
+      await route.fulfill({
+        status: table in rpc ? 200 : 404,
+        contentType: 'application/json',
+        body: JSON.stringify(table in rpc ? rpc[table] : { message: `RPC ${table} no simulada` }),
+      })
+      return
+    }
     const wantsObject = (route.request().headers()['accept'] ?? '').includes('vnd.pgrst.object')
     const rows = table === 'usuarios' ? [perfil(rol)] : (tables[table] ?? [])
     const body = wantsObject ? (rows[0] ?? null) : rows
@@ -65,4 +77,6 @@ export async function mockSupabase(
   await page.route(/mock\.supabase\.co\/(auth|storage|functions)\/v1\//, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
   )
+
+  return { rpcCalls }
 }

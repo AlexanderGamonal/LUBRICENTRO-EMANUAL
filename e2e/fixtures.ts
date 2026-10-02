@@ -139,6 +139,25 @@ const ventas = [
 const gananciasVentas = [{ sucursal_id: SUC, fecha: today, ingresos: 476, costo_real: 331.5, ganancia: 144.5, total_ventas: 3 }]
 const gananciasServicios = [{ sucursal_id: SUC, fecha: today, ingresos: 533.5, costo_real: 180, ganancia: 353.5, total_servicios: 3, total_mano_obra: 90 }]
 
+const cajaAbierta = [
+  {
+    id: 'caja-1',
+    sucursal_id: SUC,
+    usuario_id: 'usr-1',
+    fecha: today,
+    monto_apertura: 100,
+    monto_cierre_esperado: null,
+    monto_cierre_real: null,
+    diferencia: null,
+    estado: 'abierta',
+    observaciones: null,
+    opened_at: now,
+    closed_at: null,
+    created_at: now,
+    updated_at: now,
+  },
+]
+
 /** Tablas/vistas que el mock de Supabase responde con datos. */
 export const FIXTURES: Record<string, unknown[]> = {
   vw_productos_detalle: productos,
@@ -154,4 +173,5 @@ export const FIXTURES: Record<string, unknown[]> = {
   vw_ventas_detalle: ventas,
   vw_ganancias_ventas: gananciasVentas,
   vw_ganancias_servicios: gananciasServicios,
+  cajas: cajaAbierta,
 }

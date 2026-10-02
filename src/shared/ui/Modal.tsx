@@ -26,6 +26,8 @@ interface ModalProps {
   className?: string
   /** Evita cerrar al hacer clic fuera o con Escape (formularios con datos sin guardar). */
   persistent?: boolean
+  /** Permite elegir qué elemento recibe el foco al abrir (por defecto, el primero enfocable). */
+  onOpenAutoFocus?: (event: Event) => void
 }
 
 /**
@@ -43,12 +45,14 @@ export function Modal({
   footer,
   className,
   persistent,
+  onOpenAutoFocus,
 }: ModalProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 animate-overlay-in bg-black/50 backdrop-blur-[2px]" />
+        <Dialog.Overlay data-print="hide" className="fixed inset-0 z-50 animate-overlay-in bg-black/50 backdrop-blur-[2px]" />
         <Dialog.Content
+          onOpenAutoFocus={onOpenAutoFocus}
           onInteractOutside={persistent ? (e) => e.preventDefault() : undefined}
           onEscapeKeyDown={persistent ? (e) => e.preventDefault() : undefined}
           className={cn(

@@ -120,6 +120,36 @@
   }
 }
 
+/* ── Impresión del comprobante ─────────────────────────────────────────────
+ * Se oculta la app y se muestra solo el diálogo del comprobante (que vive en un portal
+ * fuera de #root). Sin esto, imprimir mostraría la pantalla completa del POS. */
+@media print {
+  #root,
+  [data-print='hide'],
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  [role='dialog'] {
+    position: static !important;
+    inset: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    animation: none !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+  [role='dialog'] * {
+    color: #000 !important;
+  }
+}
+
 @layer components {
   /* ── Accesibilidad ───────────────────────────── */
   .skip-link {

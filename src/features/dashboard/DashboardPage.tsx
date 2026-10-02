@@ -1,14 +1,37 @@
 import { useQuery } from '@tanstack/react-query'
-import { supabase } from '@/shared/lib/supabase'
-import { useAuth } from '@/features/auth/AuthProvider'
-import { diasAtrasLima, formatCurrency, hoyLima, inicioMesLima } from '@/shared/utils/formatters'
 import { Link } from 'react-router-dom'
 import { useState } from 'react'
+import {
+  AlertTriangle,
+  ArrowRight,
+  Banknote,
+  Boxes,
+  Coins,
+  Package,
+  Percent,
+  Receipt,
+  ShoppingCart,
+  Wallet,
+  Warehouse,
+  Wrench,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { supabase } from '@/shared/lib/supabase'
+import { useAuth } from '@/features/auth/AuthProvider'
+import {
+  diasAtrasLima,
+  fechaLargaLima,
+  formatCurrency,
+  hoyLima,
+  horaLima,
+  inicioMesLima,
+} from '@/shared/utils/formatters'
+import { SegmentedControl, StatCard } from '@/shared/ui'
+import type { StatTone } from '@/shared/ui'
 import { cn } from '@/shared/utils/cn'
 import type { Database } from '@/shared/types/database'
-import { TrendingUp, Package, Wrench, DollarSign, Target } from 'lucide-react'
 
-type GananciasVentasRow    = Database['public']['Views']['vw_ganancias_ventas']['Row']
+type GananciasVentasRow = Database['public']['Views']['vw_ganancias_ventas']['Row']
 type GananciasServiciosRow = Database['public']['Views']['vw_ganancias_servicios']['Row']
 type Periodo = 'hoy' | 'semana' | 'mes'
 
@@ -18,46 +41,54 @@ function fechaDesde(periodo: Periodo): string {
   return inicioMesLima()
 }
 
-const PERIODOS: { key: Periodo; label: string }[] = [
-  { key: 'hoy',    label: 'Hoy' },
-  { key: 'semana', label: 'Semana' },
-  { key: 'mes',    label: 'Mes' },
+const PERIODOS: { value: Periodo; label: string }[] = [
+  { value: 'hoy', label: 'Hoy' },
+  { value: 'semana', label: 'Semana' },
+  { value: 'mes', label: 'Mes' },
 ]
 
-interface MetricCardProps {
-  label: string
-  value: string
-  sub: string
-  highlight?: boolean
-  color?: 'green' | 'yellow' | 'red' | 'default'
-  icon?: React.ReactNode
+const PERIODO_TEXTO: Record<Periodo, string> = {
+  hoy: 'hoy',
+  semana: 'los últimos 7 días',
+  mes: 'este mes',
 }
-function MetricCard({ label, value, sub, highlight, color = 'default', icon }: MetricCardProps) {
-  const valueColor =
-    color === 'green'  ? 'text-emerald-600' :
-    color === 'yellow' ? 'text-amber-500' :
-    color === 'red'    ? 'text-rose-500' :
-    'text-slate-800'
-    
+
+/** Verde ≥30 %, ámbar ≥10 %, rojo por debajo; neutro si no hubo ingresos. */
+function tonoMargen(pct: number, ingresos: number): StatTone {
+  if (ingresos <= 0) return 'neutral'
+  if (pct >= 30) return 'success'
+  if (pct >= 10) return 'warning'
+  return 'danger'
+}
+
+interface QuickAction {
+  to: string
+  label: string
+  hint: string
+  icon: LucideIcon
+  className: string
+}
+
+const ACCIONES: QuickAction[] = [
+  { to: '/ventas/nueva', label: 'Vender', hint: 'Venta directa POS', icon: ShoppingCart, className: 'bg-accent-700 hover:bg-accent-800 text-white' },
+  { to: '/servicios/nuevo', label: 'Nueva atención', hint: 'Registrar servicio', icon: Wrench, className: 'bg-emerald-700 hover:bg-emerald-800 text-white' },
+  { to: '/caja', label: 'Caja', hint: 'Abrir o cerrar turno', icon: Wallet, className: 'bg-primary-700 hover:bg-primary-800 text-white' },
+  { to: '/inventario', label: 'Inventario', hint: 'Stock y alertas', icon: Boxes, className: 'bg-violet-700 hover:bg-violet-800 text-white' },
+]
+
+function SectionTitle({ icon: Icon, children, aside }: { icon: LucideIcon; children: React.ReactNode; aside?: React.ReactNode }) {
   return (
-    <div className={cn(
-      'bg-white rounded-2xl border p-5 transition-all duration-300 hover:shadow-card-hover hover:-translate-y-1 relative overflow-hidden group',
-      highlight ? 'border-l-4 border-l-accent-500 border-t-slate-100 border-r-slate-100 border-b-slate-100 shadow-sm' : 'border-slate-100 shadow-card',
-    )}>
-      {icon && (
-        <div className="absolute top-4 right-4 text-slate-200 group-hover:text-slate-300 transition-colors duration-300 group-hover:scale-110">
-          {icon}
-        </div>
-      )}
-      <p className="text-[13px] font-medium text-slate-500 mb-2 font-display uppercase tracking-wide">{label}</p>
-      <p className={cn('text-2xl sm:text-3xl font-bold tracking-tight', valueColor)}>{value}</p>
-      <p className="text-xs text-slate-400 mt-2 font-medium">{sub}</p>
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <Icon className="h-4 w-4 text-fg-subtle" aria-hidden="true" />
+      <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-fg-muted">{children}</h2>
+      {aside}
     </div>
   )
 }
 
 export function DashboardPage() {
   const { user } = useAuth()
+  const esAdmin = user?.rol === 'admin' || user?.rol === 'superadmin'
   const [periodo, setPeriodo] = useState<Periodo>('mes')
 
   /* ── Inventario ────────────────────────────────────────────── */
@@ -139,216 +170,158 @@ export function DashboardPage() {
   const totalGanancia = vGanancia + sGanancia
   const totalMargen   = totalIngresos > 0 ? (totalGanancia / totalIngresos) * 100 : 0
 
-  const hora = new Date().getHours()
-  const saludo = hora < 12 ? 'Buenos días' : hora < 19 ? 'Buenas tardes' : 'Buenas noches'
+  const saludo = (() => {
+    const h = horaLima()
+    return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'
+  })()
 
-  function margenColor(pct: number, loading: boolean): 'green' | 'yellow' | 'red' | 'default' {
-    if (loading) return 'default'
-    if (pct >= 30) return 'green'
-    if (pct >= 10) return 'yellow'
-    return 'red'
-  }
+  const hayMovimientos = vIngresos > 0 || sIngresos > 0
+  const cargando = loadingVentas || loadingServicios
+  const nombre = user?.nombre?.split(' ')[0]
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-8 animate-fade-in">
-      {/* Header Greeting */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="mx-auto max-w-6xl space-y-7 p-4 sm:p-6">
+      {/* Encabezado */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800 tracking-tight font-display">
-            {saludo}, <span className="text-primary-600">{user?.nombre?.split(' ')[0]}</span>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-fg sm:text-3xl">
+            {saludo}, <span className="text-primary-600">{nombre}</span>
           </h1>
-          <p className="text-slate-500 text-sm mt-1.5 font-medium flex items-center gap-1.5">
-            <Target className="w-4 h-4 text-accent-500" />
-            Resumen de actividad en tiempo real
-          </p>
+          <p className="mt-1 text-sm font-medium text-fg-muted first-letter:uppercase">{fechaLargaLima()}</p>
         </div>
+        <SegmentedControl label="Período del resumen" options={PERIODOS} value={periodo} onChange={setPeriodo} />
+      </div>
 
-        {/* Selector de período (compartido) */}
-        <div className="flex gap-1 bg-slate-200/50 p-1 rounded-xl border border-slate-200/60 shadow-inner">
-          {PERIODOS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setPeriodo(key)}
-              className={cn(
-                'px-4 py-1.5 text-sm rounded-lg font-semibold transition-all duration-200',
-                periodo === key 
-                  ? 'bg-white shadow-sm text-primary-700' 
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50',
-              )}
-            >
-              {label}
-            </button>
+      {/* Acciones rápidas: lo más usado va primero */}
+      <section aria-label="Acciones rápidas">
+        <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {ACCIONES.map(({ to, label, hint, icon: Icon, className }) => (
+            <li key={to}>
+              <Link
+                to={to}
+                className={cn(
+                  'flex min-h-[72px] items-center gap-3 rounded-2xl p-3.5 shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md sm:p-4',
+                  className,
+                )}
+              >
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/20" aria-hidden="true">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate font-display text-sm font-bold">{label}</span>
+                  <span className="block truncate text-xs">{hint}</span>
+                </span>
+              </Link>
+            </li>
           ))}
-        </div>
-      </div>
+        </ul>
+      </section>
 
-      {/* ── Resumen total (ventas + servicios) ──────────────── */}
-      {(vIngresos > 0 || sIngresos > 0) && (
-        <div className="bg-gradient-to-r from-primary-800 to-primary-600 rounded-2xl p-6 md:p-8 text-white shadow-btn-primary relative overflow-hidden flex items-center justify-between">
-          <div className="absolute right-0 top-0 w-64 h-full bg-gradient-to-l from-white/10 to-transparent pointer-events-none" />
-          <div>
-            <p className="text-sm text-primary-200 font-semibold uppercase tracking-wider font-display mb-1">Total Recaudado</p>
-            <p className="text-4xl md:text-5xl font-bold tracking-tight">{formatCurrency(totalIngresos)}</p>
-          </div>
-          <div className="text-right z-10">
-            <p className="text-sm text-primary-200 font-semibold uppercase tracking-wider font-display mb-1">Ganancia Total</p>
-            <p className={cn('text-2xl md:text-3xl font-bold tracking-tight', totalGanancia >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
-              {formatCurrency(totalGanancia)}
-              <span className="text-lg md:text-xl font-medium ml-2 text-primary-200/80">({totalMargen.toFixed(1)}%)</span>
-            </p>
-          </div>
-        </div>
+      {/* Alerta de stock */}
+      {(stockBajo ?? 0) > 0 && (
+        <Link
+          to="/inventario"
+          className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-500/30"
+        >
+          <AlertTriangle className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+          <span className="min-w-0 flex-1 text-sm font-semibold">
+            {stockBajo} producto{stockBajo === 1 ? '' : 's'} con stock bajo el mínimo
+          </span>
+          <span className="flex flex-shrink-0 items-center gap-1 text-sm font-semibold">
+            Ver <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </span>
+        </Link>
       )}
 
-      {/* ── Ventas POS ──────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <DollarSign className="w-4 h-4 text-slate-500" />
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide font-display">Ventas POS</h2>
-          {vCount > 0 && <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{vCount} transacciones</span>}
+      {/* Resumen del período */}
+      <section aria-label={`Resumen de ${PERIODO_TEXTO[periodo]}`}>
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary-800 to-primary-600 p-5 text-white shadow-btn-primary sm:p-7">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-64 bg-gradient-to-l from-white/10 to-transparent" />
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="font-display text-xs font-semibold uppercase tracking-wider text-primary-100">Total recaudado · {PERIODO_TEXTO[periodo]}</p>
+              <p className="mt-1 font-display text-4xl font-bold tracking-tight tabular-nums sm:text-5xl">
+                {cargando ? '—' : formatCurrency(totalIngresos)}
+              </p>
+              {!cargando && !hayMovimientos && <p className="mt-1 text-sm text-primary-100">Aún no hay movimientos en este período.</p>}
+            </div>
+            {esAdmin && (
+              <div className="sm:text-right">
+                <p className="font-display text-xs font-semibold uppercase tracking-wider text-primary-100">Ganancia total</p>
+                <p className={cn('mt-1 font-display text-2xl font-bold tracking-tight tabular-nums sm:text-3xl', totalGanancia >= 0 ? 'text-emerald-300' : 'text-rose-300')}>
+                  {cargando ? '—' : formatCurrency(totalGanancia)}
+                  {hayMovimientos && <span className="ml-2 text-base font-medium text-primary-100">({totalMargen.toFixed(1)}%)</span>}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <MetricCard
-            label="Ingresos"
-            value={loadingVentas ? '—' : formatCurrency(vIngresos)}
-            sub={loadingVentas ? '' : `${vCount} ventas`}
-            icon={<TrendingUp className="w-10 h-10" />}
-          />
-          <MetricCard
-            label="Ganancia"
-            value={loadingVentas ? '—' : formatCurrency(vGanancia)}
-            sub="ingreso – costo"
-            highlight
-            color={loadingVentas ? 'default' : vGanancia >= 0 ? 'green' : 'red'}
-            icon={<DollarSign className="w-10 h-10" />}
-          />
-          <MetricCard
-            label="Margen"
-            value={loadingVentas ? '—' : `${vMargen.toFixed(1)}%`}
-            sub="sobre precio venta"
-            color={margenColor(vMargen, loadingVentas)}
-            icon={<Target className="w-10 h-10" />}
-          />
-        </div>
-      </div>
+      </section>
 
-      {/* ── Servicios ───────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <Wrench className="w-4 h-4 text-slate-500" />
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide font-display">Servicios / Atenciones</h2>
-          {sCount > 0 && <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{sCount} atenciones</span>}
+      {/* Ventas POS */}
+      <section aria-label="Ventas POS">
+        <SectionTitle
+          icon={ShoppingCart}
+          aside={vCount > 0 && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-fg-muted">{vCount} transacciones</span>}
+        >
+          Ventas POS
+        </SectionTitle>
+        <div className={cn('grid grid-cols-2 gap-3', esAdmin ? 'sm:grid-cols-4' : 'sm:grid-cols-2')}>
+          <StatCard stackOnMobile label="Ingresos" value={formatCurrency(vIngresos)} hint={`${vCount} venta${vCount === 1 ? '' : 's'}`} icon={Banknote} tone="accent" loading={loadingVentas} />
+          <StatCard stackOnMobile label="Ticket promedio" value={formatCurrency(vCount > 0 ? vIngresos / vCount : 0)} hint="por venta" icon={Receipt} tone="neutral" loading={loadingVentas} />
+          {esAdmin && (
+            <>
+              <StatCard stackOnMobile label="Ganancia" value={formatCurrency(vGanancia)} hint="ingreso – costo" icon={Coins} tone={vIngresos > 0 ? (vGanancia >= 0 ? 'success' : 'danger') : 'neutral'} loading={loadingVentas} />
+              <StatCard stackOnMobile label="Margen" value={`${vMargen.toFixed(1)}%`} hint="sobre precio de venta" icon={Percent} tone={tonoMargen(vMargen, vIngresos)} loading={loadingVentas} />
+            </>
+          )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <MetricCard
-            label="Ingresos"
-            value={loadingServicios ? '—' : formatCurrency(sIngresos)}
-            sub={loadingServicios ? '' : `MO: ${formatCurrency(sManoObra)}`}
-            icon={<TrendingUp className="w-10 h-10" />}
-          />
-          <MetricCard
-            label="Ganancia"
-            value={loadingServicios ? '—' : formatCurrency(sGanancia)}
-            sub="ingresos – costo productos"
-            highlight
-            color={loadingServicios ? 'default' : sGanancia >= 0 ? 'green' : 'red'}
-            icon={<DollarSign className="w-10 h-10" />}
-          />
-          <MetricCard
-            label="Margen"
-            value={loadingServicios ? '—' : `${sMargen.toFixed(1)}%`}
-            sub="sobre precio servicio"
-            color={margenColor(sMargen, loadingServicios)}
-            icon={<Target className="w-10 h-10" />}
-          />
-        </div>
-      </div>
+      </section>
 
-      {/* ── Inventario ──────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <Package className="w-4 h-4 text-slate-500" />
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide font-display">Inventario</h2>
+      {/* Servicios */}
+      <section aria-label="Servicios y atenciones">
+        <SectionTitle
+          icon={Wrench}
+          aside={sCount > 0 && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-fg-muted">{sCount} atenciones</span>}
+        >
+          Servicios / atenciones
+        </SectionTitle>
+        <div className={cn('grid grid-cols-2 gap-3', esAdmin ? 'sm:grid-cols-4' : 'sm:grid-cols-2')}>
+          <StatCard stackOnMobile label="Ingresos" value={formatCurrency(sIngresos)} hint={`${sCount} atención${sCount === 1 ? '' : 'es'}`} icon={Banknote} tone="accent" loading={loadingServicios} />
+          <StatCard stackOnMobile label="Mano de obra" value={formatCurrency(sManoObra)} hint="cobrado por trabajo" icon={Wrench} tone="neutral" loading={loadingServicios} />
+          {esAdmin && (
+            <>
+              <StatCard stackOnMobile label="Ganancia" value={formatCurrency(sGanancia)} hint="ingresos – costo de productos" icon={Coins} tone={sIngresos > 0 ? (sGanancia >= 0 ? 'success' : 'danger') : 'neutral'} loading={loadingServicios} />
+              <StatCard stackOnMobile label="Margen" value={`${sMargen.toFixed(1)}%`} hint="sobre precio del servicio" icon={Percent} tone={tonoMargen(sMargen, sIngresos)} loading={loadingServicios} />
+            </>
+          )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <MetricCard
-            label="Productos activos"
-            value={String(valorInventario?.productos ?? '—')}
-            sub={`${valorInventario?.unidades ?? '—'} unidades`}
-            icon={<Package className="w-10 h-10" />}
-          />
-          <MetricCard
+      </section>
+
+      {/* Inventario */}
+      <section aria-label="Inventario">
+        <SectionTitle icon={Package}>Inventario</SectionTitle>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <StatCard stackOnMobile label="Productos activos" value={valorInventario?.productos ?? '—'} hint={`${valorInventario?.unidades ?? '—'} unidades`} icon={Package} tone="accent" />
+          <StatCard
+            stackOnMobile
             label="Stock bajo"
-            value={String(stockBajo ?? '—')}
-            sub="bajo el mínimo"
-            color={(stockBajo ?? 0) > 0 ? 'red' : 'green'}
-            highlight={(stockBajo ?? 0) > 0}
-            icon={<Target className="w-10 h-10" />}
+            value={stockBajo ?? '—'}
+            hint="bajo el mínimo"
+            icon={AlertTriangle}
+            tone={stockBajo === undefined ? 'neutral' : stockBajo > 0 ? 'danger' : 'success'}
           />
-          <MetricCard
-            label="Valor inventario"
+          <StatCard
+            stackOnMobile
+            label="Valor del inventario"
             value={valorInventario ? formatCurrency(valorInventario.valor) : '—'}
-            sub="precio venta total"
-            icon={<DollarSign className="w-10 h-10" />}
+            hint="a precio de venta"
+            icon={Warehouse}
+            tone="neutral"
+            className="col-span-2 sm:col-span-1"
           />
         </div>
-      </div>
-
-      {/* ── Accesos Rápidos ─────────────────────────────────── */}
-      <div>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide font-display mb-3">Accesos rápidos</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Link
-            to="/servicios/nuevo"
-            className="group flex flex-col items-center justify-center p-5 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-500 transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-1 relative overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-300 rounded-2xl" />
-            <span className="text-sm font-bold tracking-wide relative z-10 font-display">Nueva Atención</span>
-            <span className="text-xs opacity-80 relative z-10 mt-0.5">Registrar servicio</span>
-          </Link>
-
-          <Link
-            to="/ventas/nueva"
-            className="group flex flex-col items-center justify-center p-5 bg-primary-600 text-white rounded-2xl hover:bg-primary-500 transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-1 relative overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-300 rounded-2xl" />
-            <span className="text-sm font-bold tracking-wide relative z-10 font-display">Vender</span>
-            <span className="text-xs opacity-80 relative z-10 mt-0.5">Venta directa POS</span>
-          </Link>
-
-          <Link
-            to="/vehiculos"
-            className="group flex flex-col items-center justify-center p-5 bg-slate-800 text-white rounded-2xl hover:bg-slate-700 transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-1 relative overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-300 rounded-2xl" />
-            <span className="text-sm font-bold tracking-wide relative z-10 font-display">Vehículos</span>
-            <span className="text-xs opacity-80 relative z-10 mt-0.5">Historial por placa</span>
-          </Link>
-
-          <Link
-            to="/inventario"
-            className="group flex flex-col items-center justify-center p-5 bg-violet-600 text-white rounded-2xl hover:bg-violet-500 transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-1 relative overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-300 rounded-2xl" />
-            <span className="text-sm font-bold tracking-wide relative z-10 font-display">Inventario</span>
-            <span className="text-xs opacity-80 relative z-10 mt-0.5">Stock y alertas</span>
-          </Link>
-        </div>
-      </div>
-
-      {stockBajo != null && stockBajo > 0 && (
-        <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between">
-          <div>
-            <p className="font-semibold text-red-800 text-sm">
-              ⚠️ {stockBajo} producto{stockBajo > 1 ? 's' : ''} con stock bajo
-            </p>
-            <p className="text-red-600 text-xs mt-0.5">Revisar y reponer para evitar quiebres de stock</p>
-          </div>
-          <Link to="/inventario" className="text-sm font-medium text-red-700 hover:text-red-900 underline">
-            Ver alertas →
-          </Link>
-        </div>
-      )}
+      </section>
     </div>
   )
 }

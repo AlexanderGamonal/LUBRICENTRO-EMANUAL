@@ -1,19 +1,24 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { Boxes, History, PackageCheck, PiggyBank, Warehouse, Layers } from 'lucide-react'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { formatCurrency, formatDateTime } from '@/shared/utils/formatters'
 import { cn } from '@/shared/utils/cn'
+import { DataTable, EmptyState, SegmentedControl, StatCard } from '@/shared/ui'
+import type { Column } from '@/shared/ui'
 import type { Database, TipoMovimientoStock } from '@/shared/types/database'
 
 type ValorInventario = Database['public']['Views']['vw_valor_inventario']['Row']
 type StockBajo = Database['public']['Views']['vw_stock_bajo']['Row']
 type MovimientoDetalle = Database['public']['Views']['vw_movimientos_stock_detalle']['Row']
 
-type Tab = 'resumen' | 'stock_bajo' | 'movimientos'
+/** Fila de la tabla por categoría; la última (`esTotal`) resume todo el inventario. */
+type FilaCategoria = ValorInventario & { esTotal?: boolean }
 
-const DIAS_OPCIONES = [7, 30, 90] as const
+type Tab = 'resumen' | 'stock_bajo' | 'movimientos'
+type Dias = '7' | '30' | '90'
 
 const TIPO_COLORS: Record<TipoMovimientoStock, string> = {
   entrada: 'bg-green-100 text-green-700',
@@ -35,13 +40,19 @@ const TIPO_LABELS: Record<TipoMovimientoStock, string> = {
   servicio: 'Servicio',
 }
 
+/** Roles que pueden ajustar stock (igual que la ruta /inventario/ajuste/:id en router.tsx). */
+const ROLES_AJUSTAN = ['admin', 'superadmin', 'almacen']
+
 export function InventarioPage() {
   const { user } = useAuth()
   const [tab, setTab] = useState<Tab>('resumen')
-  const [dias, setDias] = useState<7 | 30 | 90>(30)
+  const [dias, setDias] = useState<Dias>('30')
   const [tipoFiltro, setTipoFiltro] = useState<TipoMovimientoStock | ''>('')
 
-  // ---- Tab 1: Resumen ----
+  const esAdmin = user?.rol === 'admin' || user?.rol === 'superadmin'
+  const puedeAjustar = !!user && ROLES_AJUSTAN.includes(user.rol)
+
+  // ---- Resumen ----
   const { data: valorInventario, isLoading: loadingValor } = useQuery<ValorInventario[]>({
     queryKey: ['valor_inventario', user?.sucursal_id],
     queryFn: async () => {
@@ -63,7 +74,23 @@ export function InventarioPage() {
   const totalUtilidad = totalValorVenta - totalValorCosto
   const margenPct = totalValorVenta > 0 ? (totalUtilidad / totalValorVenta) * 100 : 0
 
-  // ---- Tab 2: Stock Bajo ----
+  const filasCategoria: FilaCategoria[] =
+    valorInventario && valorInventario.length > 0
+      ? [
+          ...valorInventario,
+          {
+            sucursal_id: valorInventario[0].sucursal_id,
+            categoria: 'TOTAL',
+            total_productos: totalProductos,
+            total_unidades: totalUnidades,
+            valor_costo: totalValorCosto,
+            valor_venta: totalValorVenta,
+            esTotal: true,
+          },
+        ]
+      : []
+
+  // ---- Stock bajo ----
   const { data: stockBajo, isLoading: loadingStockBajo } = useQuery<StockBajo[]>({
     queryKey: ['stock_bajo', user?.sucursal_id],
     queryFn: async () => {
@@ -78,9 +105,9 @@ export function InventarioPage() {
     enabled: !!user && tab === 'stock_bajo',
   })
 
-  // ---- Tab 3: Movimientos ----
+  // ---- Movimientos ----
   const fechaDesde = new Date()
-  fechaDesde.setDate(fechaDesde.getDate() - dias)
+  fechaDesde.setDate(fechaDesde.getDate() - Number(dias))
 
   const { data: movimientos, isLoading: loadingMovimientos } = useQuery<MovimientoDetalle[]>({
     queryKey: ['movimientos', user?.sucursal_id, dias, tipoFiltro],
@@ -102,416 +129,255 @@ export function InventarioPage() {
     enabled: !!user && tab === 'movimientos',
   })
 
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Inventario</h1>
+  // ── Columnas ────────────────────────────────────────────────────────────────
+  const utilidadDe = (r: FilaCategoria) => r.valor_venta - r.valor_costo
+  const margenDe = (r: FilaCategoria) => (r.valor_venta > 0 ? `${((utilidadDe(r) / r.valor_venta) * 100).toFixed(1)}%` : '—')
 
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 mb-6">
-        {([
-          ['resumen', 'Resumen'],
-          ['stock_bajo', 'Stock Bajo'],
-          ['movimientos', 'Movimientos'],
-        ] as const).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={cn(
-              'px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
-              tab === key
-                ? 'border-primary-700 text-primary-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700',
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+  const columnasCategoria: Column<FilaCategoria>[] = [
+    { key: 'categoria', header: 'Categoría', mobile: 'title', cell: (r) => <span className="font-medium text-fg">{r.categoria}</span> },
+    { key: 'productos', header: 'Productos', align: 'right', cell: (r) => r.total_productos },
+    { key: 'unidades', header: 'Unidades', align: 'right', cell: (r) => r.total_unidades },
+    ...(esAdmin
+      ? ([
+          { key: 'costo', header: 'Valor costo', align: 'right', cell: (r) => formatCurrency(r.valor_costo) },
+        ] as Column<FilaCategoria>[])
+      : []),
+    { key: 'venta', header: 'Valor venta', align: 'right', cell: (r) => <span className="font-medium text-fg">{formatCurrency(r.valor_venta)}</span> },
+    ...(esAdmin
+      ? ([
+          {
+            key: 'utilidad',
+            header: 'Utilidad',
+            align: 'right',
+            cell: (r) => (
+              <div className="font-semibold text-green-700">
+                {formatCurrency(utilidadDe(r))}
+                <div className="text-xs font-normal text-fg-subtle">{margenDe(r)}</div>
+              </div>
+            ),
+          },
+        ] as Column<FilaCategoria>[])
+      : []),
+  ]
 
-      {/* Tab: Resumen */}
-      {tab === 'resumen' && (
+  const columnasStockBajo: Column<StockBajo>[] = [
+    { key: 'codigo', header: 'Código', mobile: 'hidden', cell: (p) => <span className="font-mono text-xs text-fg">{p.codigo_interno}</span> },
+    {
+      key: 'nombre',
+      header: 'Nombre',
+      mobile: 'title',
+      cell: (p) => (
         <div>
-          {/* Tarjetas resumen — 2 cols en móvil, 4 en desktop */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
-              <p className="text-xs sm:text-sm text-gray-500">Total Productos</p>
-              <p className="text-xl sm:text-2xl font-bold text-primary-700 mt-1">
-                {loadingValor ? '—' : totalProductos.toLocaleString('es-PE')}
-              </p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
-              <p className="text-xs sm:text-sm text-gray-500">Total Unidades</p>
-              <p className="text-xl sm:text-2xl font-bold text-primary-700 mt-1">
-                {loadingValor ? '—' : totalUnidades.toLocaleString('es-PE')}
-              </p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
-              <p className="text-xs sm:text-sm text-gray-500">Valor Inventario</p>
-              <p className="text-lg sm:text-2xl font-bold text-primary-700 mt-1">
-                {loadingValor ? '—' : formatCurrency(totalValorVenta)}
-              </p>
-            </div>
-            <div className="bg-white rounded-xl border border-l-4 border-gray-100 border-l-green-500 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
-              <p className="text-xs sm:text-sm text-gray-500">Utilidad Potencial</p>
-              <p className="text-lg sm:text-2xl font-bold text-green-700 mt-1">
-                {loadingValor ? '—' : formatCurrency(totalUtilidad)}
-              </p>
-              <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
-                {loadingValor ? '' : `Margen ${margenPct.toFixed(1)}%`}
-              </p>
-            </div>
+          <div className="font-medium text-fg">{p.nombre}</div>
+          <div className="text-xs font-normal text-fg-subtle">
+            <span className="font-mono md:hidden">{p.codigo_interno}</span>
+            {p.marca && <span className="md:block"><span className="md:hidden"> · </span>{p.marca}</span>}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'ubicacion',
+      header: 'Ubicación',
+      cell: (p) =>
+        p.ubicacion_codigo ? <span className="rounded bg-blue-50 px-2 py-0.5 font-mono text-xs text-primary-700">{p.ubicacion_codigo}</span> : '—',
+    },
+    {
+      key: 'actual',
+      header: 'Stock actual',
+      align: 'right',
+      cell: (p) => <span className={cn('font-semibold', p.stock_actual === 0 ? 'text-red-700' : 'text-yellow-700')}>{p.stock_actual}</span>,
+    },
+    { key: 'minimo', header: 'Stock mínimo', align: 'right', cell: (p) => p.stock_minimo },
+    { key: 'deficit', header: 'Déficit', align: 'right', cell: (p) => <span className="font-medium text-red-700">{p.deficit}</span> },
+    {
+      key: 'accion',
+      header: 'Acción',
+      mobile: 'actions',
+      srOnlyHeader: true,
+      cell: (p) =>
+        puedeAjustar ? (
+          <Link
+            to={`/inventario/ajuste/${p.id}`}
+            className="inline-flex min-h-touch items-center text-sm font-semibold text-primary-700 hover:text-primary-900 md:min-h-0 md:text-xs md:font-medium"
+          >
+            Ajustar stock
+          </Link>
+        ) : null,
+    },
+  ]
+
+  const cantidadMostrada = (m: MovimientoDetalle) =>
+    m.tipo === 'ajuste'
+      ? m.cantidad_nueva - m.cantidad_anterior
+      : m.tipo === 'salida' || m.tipo === 'venta' || m.tipo === 'servicio' || m.tipo === 'perdida'
+        ? -m.cantidad
+        : m.cantidad
+
+  const columnasMovimientos: Column<MovimientoDetalle>[] = [
+    { key: 'fecha', header: 'Fecha', mobile: 'subtitle', cell: (m) => <span className="whitespace-nowrap text-fg-muted">{formatDateTime(m.created_at)}</span> },
+    {
+      key: 'producto',
+      header: 'Producto',
+      mobile: 'title',
+      cell: (m) => (
+        <div>
+          <div className="font-medium text-fg">{m.producto_nombre}</div>
+          <div className="font-mono text-xs font-normal text-fg-subtle">{m.codigo_interno}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'tipo',
+      header: 'Tipo',
+      cell: (m) => <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', TIPO_COLORS[m.tipo])}>{TIPO_LABELS[m.tipo]}</span>,
+    },
+    {
+      key: 'cantidad',
+      header: 'Cantidad',
+      align: 'right',
+      cell: (m) => {
+        const c = cantidadMostrada(m)
+        return (
+          <span className={cn('font-semibold', c >= 0 ? 'text-green-700' : 'text-red-700')}>
+            {c >= 0 ? '+' : ''}
+            {c}
+          </span>
+        )
+      },
+    },
+    {
+      key: 'stock',
+      header: 'Stock',
+      cell: (m) => (
+        <span className="whitespace-nowrap text-xs">
+          {m.cantidad_anterior} → {m.cantidad_nueva}
+        </span>
+      ),
+    },
+    { key: 'motivo', header: 'Motivo', hideBelowLg: true, className: 'max-w-[180px] truncate text-xs', cell: (m) => m.motivo ?? '—' },
+    { key: 'usuario', header: 'Usuario', hideBelowLg: true, className: 'text-xs', cell: (m) => m.usuario_nombre ?? '—' },
+  ]
+
+  return (
+    <div className="mx-auto max-w-7xl p-4 sm:p-6">
+      <h1 className="mb-5 text-2xl font-bold text-fg">Inventario</h1>
+
+      <SegmentedControl
+        label="Sección del inventario"
+        value={tab}
+        onChange={setTab}
+        className="mb-5"
+        options={[
+          { value: 'resumen', label: 'Resumen' },
+          { value: 'stock_bajo', label: 'Stock bajo', count: stockBajo?.length },
+          { value: 'movimientos', label: 'Movimientos' },
+        ]}
+      />
+
+      {tab === 'resumen' && (
+        <div className="space-y-5">
+          <div className={cn('grid grid-cols-2 gap-3', esAdmin ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
+            <StatCard stackOnMobile label="Total productos" value={totalProductos.toLocaleString('es-PE')} icon={Boxes} tone="accent" loading={loadingValor} />
+            <StatCard stackOnMobile label="Total unidades" value={totalUnidades.toLocaleString('es-PE')} icon={Layers} tone="neutral" loading={loadingValor} />
+            <StatCard
+              stackOnMobile
+              label="Valor del inventario"
+              value={formatCurrency(totalValorVenta)}
+              hint="a precio de venta"
+              icon={Warehouse}
+              tone="neutral"
+              loading={loadingValor}
+              className={esAdmin ? undefined : 'col-span-2 lg:col-span-1'}
+            />
+            {esAdmin && (
+              <StatCard
+                stackOnMobile
+                label="Utilidad potencial"
+                value={formatCurrency(totalUtilidad)}
+                hint={`Margen ${margenPct.toFixed(1)}%`}
+                icon={PiggyBank}
+                tone="success"
+                loading={loadingValor}
+              />
+            )}
           </div>
 
-          {/* Tabla por categoría */}
-          <div className="card p-0 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-200">
-              <h2 className="font-semibold text-gray-800">
-                Valor por Categoría
-              </h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200 text-left text-gray-600">
-                    <th className="px-4 py-3 font-medium">Categoría</th>
-                    <th className="px-4 py-3 font-medium text-right">
-                      Productos
-                    </th>
-                    <th className="px-4 py-3 font-medium text-right">
-                      Unidades
-                    </th>
-                    <th className="px-4 py-3 font-medium text-right">
-                      Valor Costo
-                    </th>
-                    <th className="px-4 py-3 font-medium text-right">
-                      Valor Venta
-                    </th>
-                    <th className="px-4 py-3 font-medium text-right text-green-700">
-                      Utilidad
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {loadingValor &&
-                    [1, 2, 3].map((n) => (
-                      <tr key={n}>
-                        {[1, 2, 3, 4, 5, 6].map((c) => (
-                          <td key={c} className="px-4 py-3">
-                            <div className="h-4 bg-gray-200 rounded animate-pulse" />
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  {!loadingValor &&
-                    (!valorInventario || valorInventario.length === 0) && (
-                      <tr>
-                        <td
-                          colSpan={6}
-                          className="px-4 py-8 text-center text-gray-400"
-                        >
-                          Sin datos de inventario
-                        </td>
-                      </tr>
-                    )}
-                  {valorInventario?.map((row) => (
-                    <tr key={row.categoria} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        {row.categoria}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-600">
-                        {row.total_productos}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-600">
-                        {row.total_unidades}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-600">
-                        {formatCurrency(row.valor_costo)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-900">
-                        {formatCurrency(row.valor_venta)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-green-700">
-                        {formatCurrency(row.valor_venta - row.valor_costo)}
-                        <div className="text-xs font-normal text-gray-400">
-                          {row.valor_venta > 0
-                            ? `${(((row.valor_venta - row.valor_costo) / row.valor_venta) * 100).toFixed(1)}%`
-                            : '—'}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {valorInventario && valorInventario.length > 0 && (
-                    <tr className="bg-gray-50 font-semibold border-t border-gray-200">
-                      <td className="px-4 py-3 text-gray-900">TOTAL</td>
-                      <td className="px-4 py-3 text-right text-gray-900">
-                        {totalProductos}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-900">
-                        {totalUnidades}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-900">
-                        {formatCurrency(totalValorCosto)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-primary-700">
-                        {formatCurrency(totalValorVenta)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-green-700">
-                        {formatCurrency(totalUtilidad)}
-                        <div className="text-xs font-normal text-gray-500">
-                          {margenPct.toFixed(1)}%
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+          <div>
+            <h2 className="mb-3 text-base font-semibold text-fg">Valor por categoría</h2>
+            <DataTable
+              caption="Valor del inventario por categoría"
+              columns={columnasCategoria}
+              rows={filasCategoria}
+              rowKey={(r) => (r.esTotal ? '__total' : r.categoria)}
+              loading={loadingValor}
+              skeletonRows={3}
+              rowClassName={(r) => (r.esTotal ? 'bg-muted font-semibold' : undefined)}
+              empty={<EmptyState icon={PackageCheck} title="Sin datos de inventario" description="Cuando registres productos con stock, verás aquí su valor por categoría." />}
+            />
           </div>
         </div>
       )}
 
-      {/* Tab: Stock Bajo */}
       {tab === 'stock_bajo' && (
-        <div className="card p-0 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-800">
-              Productos con Stock Bajo o Agotado
-            </h2>
+        <div>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-fg">Productos con stock bajo o agotado</h2>
             {stockBajo && (
-              <span className="text-sm text-red-600 font-medium">
+              <span className="text-sm font-medium text-red-700">
                 {stockBajo.length} producto{stockBajo.length !== 1 ? 's' : ''}
               </span>
             )}
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-left text-gray-600">
-                  <th className="px-4 py-3 font-medium">Código</th>
-                  <th className="px-4 py-3 font-medium">Nombre</th>
-                  <th className="px-4 py-3 font-medium">Ubicación</th>
-                  <th className="px-4 py-3 font-medium text-right">
-                    Stock Actual
-                  </th>
-                  <th className="px-4 py-3 font-medium text-right">
-                    Stock Mínimo
-                  </th>
-                  <th className="px-4 py-3 font-medium text-right">Déficit</th>
-                  <th className="px-4 py-3 font-medium">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {loadingStockBajo &&
-                  [1, 2, 3].map((n) => (
-                    <tr key={n}>
-                      {[1, 2, 3, 4, 5, 6, 7].map((c) => (
-                        <td key={c} className="px-4 py-3">
-                          <div className="h-4 bg-gray-200 rounded animate-pulse" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                {!loadingStockBajo &&
-                  (!stockBajo || stockBajo.length === 0) && (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="px-4 py-12 text-center text-gray-400"
-                      >
-                        Todos los productos tienen stock suficiente
-                      </td>
-                    </tr>
-                  )}
-                {stockBajo?.map((p) => (
-                  <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-700">
-                      {p.codigo_interno}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900">{p.nombre}</div>
-                      {p.marca && (
-                        <div className="text-xs text-gray-400">{p.marca}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {p.ubicacion_codigo ? (
-                        <span className="font-mono text-xs bg-blue-50 text-primary-700 px-2 py-0.5 rounded">
-                          {p.ubicacion_codigo}
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <span
-                        className={cn(
-                          'font-semibold',
-                          p.stock_actual === 0
-                            ? 'text-red-600'
-                            : 'text-yellow-600',
-                        )}
-                      >
-                        {p.stock_actual}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-600">
-                      {p.stock_minimo}
-                    </td>
-                    <td className="px-4 py-3 text-right text-red-600 font-medium">
-                      {p.deficit}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        to={`/inventario/ajuste/${p.id}`}
-                        className="text-xs text-primary-700 hover:text-primary-900 font-medium"
-                      >
-                        Ajustar
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            caption="Productos con stock bajo o agotado"
+            columns={columnasStockBajo}
+            rows={stockBajo}
+            rowKey={(p) => p.id}
+            loading={loadingStockBajo}
+            skeletonRows={3}
+            empty={<EmptyState icon={PackageCheck} title="Todo en orden" description="Todos los productos tienen stock suficiente." />}
+          />
         </div>
       )}
 
-      {/* Tab: Movimientos */}
       {tab === 'movimientos' && (
         <div>
-          <div className="flex flex-col sm:flex-row gap-3 mb-4">
-            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-              {DIAS_OPCIONES.map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setDias(d)}
-                  className={cn(
-                    'px-3 py-1.5 text-sm rounded-md transition-colors font-medium',
-                    dias === d
-                      ? 'bg-white shadow text-primary-700'
-                      : 'text-gray-600 hover:text-gray-800',
-                  )}
-                >
-                  {d} días
-                </button>
-              ))}
-            </div>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <SegmentedControl
+              label="Período de movimientos"
+              value={dias}
+              onChange={setDias}
+              options={[
+                { value: '7', label: '7 días' },
+                { value: '30', label: '30 días' },
+                { value: '90', label: '90 días' },
+              ]}
+            />
             <select
+              aria-label="Filtrar por tipo de movimiento"
               value={tipoFiltro}
-              onChange={(e) =>
-                setTipoFiltro(e.target.value as TipoMovimientoStock | '')
-              }
-              className="input-field max-w-xs"
+              onChange={(e) => setTipoFiltro(e.target.value as TipoMovimientoStock | '')}
+              className="input-field sm:max-w-xs"
             >
               <option value="">Todos los tipos</option>
-              {(Object.keys(TIPO_LABELS) as TipoMovimientoStock[]).map(
-                (tipo) => (
-                  <option key={tipo} value={tipo}>
-                    {TIPO_LABELS[tipo]}
-                  </option>
-                ),
-              )}
+              {(Object.keys(TIPO_LABELS) as TipoMovimientoStock[]).map((tipo) => (
+                <option key={tipo} value={tipo}>
+                  {TIPO_LABELS[tipo]}
+                </option>
+              ))}
             </select>
           </div>
 
-          <div className="card p-0 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200 text-left text-gray-600">
-                    <th className="px-4 py-3 font-medium">Fecha</th>
-                    <th className="px-4 py-3 font-medium">Producto</th>
-                    <th className="px-4 py-3 font-medium">Tipo</th>
-                    <th className="px-4 py-3 font-medium text-right">
-                      Cantidad
-                    </th>
-                    <th className="px-4 py-3 font-medium">Stock</th>
-                    <th className="px-4 py-3 font-medium">Motivo</th>
-                    <th className="px-4 py-3 font-medium">Usuario</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {loadingMovimientos &&
-                    [1, 2, 3, 4, 5].map((n) => (
-                      <tr key={n}>
-                        {[1, 2, 3, 4, 5, 6, 7].map((c) => (
-                          <td key={c} className="px-4 py-3">
-                            <div className="h-4 bg-gray-200 rounded animate-pulse" />
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  {!loadingMovimientos &&
-                    (!movimientos || movimientos.length === 0) && (
-                      <tr>
-                        <td
-                          colSpan={7}
-                          className="px-4 py-12 text-center text-gray-400"
-                        >
-                          No hay movimientos en el período seleccionado
-                        </td>
-                      </tr>
-                    )}
-                  {movimientos?.map((m) => {
-                    const cantidadMostrar = m.tipo === 'ajuste'
-                      ? m.cantidad_nueva - m.cantidad_anterior
-                      : m.tipo === 'salida' || m.tipo === 'venta' || m.tipo === 'servicio' || m.tipo === 'perdida'
-                      ? -m.cantidad
-                      : m.cantidad
-
-                    return (
-                      <tr key={m.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                          {formatDateTime(m.created_at)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-gray-900">
-                            {m.producto_nombre}
-                          </div>
-                          <div className="text-xs text-gray-400 font-mono">
-                            {m.codigo_interno}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={cn(
-                              'text-xs font-medium px-2 py-0.5 rounded-full',
-                              TIPO_COLORS[m.tipo],
-                            )}
-                          >
-                            {TIPO_LABELS[m.tipo]}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right font-semibold">
-                          <span
-                            className={
-                              cantidadMostrar >= 0
-                                ? 'text-green-600'
-                                : 'text-red-600'
-                            }
-                          >
-                            {cantidadMostrar >= 0 ? '+' : ''}
-                            {cantidadMostrar}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                          <span className="text-xs">
-                            {m.cantidad_anterior} → {m.cantidad_nueva}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-500 text-xs max-w-[180px] truncate">
-                          {m.motivo ?? '—'}
-                        </td>
-                        <td className="px-4 py-3 text-gray-500 text-xs">
-                          {m.usuario_nombre ?? '—'}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DataTable
+            caption="Movimientos de stock"
+            columns={columnasMovimientos}
+            rows={movimientos}
+            rowKey={(m) => m.id}
+            loading={loadingMovimientos}
+            skeletonRows={5}
+            empty={<EmptyState icon={History} title="No hay movimientos en el período" description="Prueba con un rango mayor o quita el filtro de tipo." />}
+          />
         </div>
       )}
     </div>

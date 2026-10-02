@@ -111,3 +111,13 @@ export function diasAtrasLima(n: number): string {
 export function inicioMesLima(): string {
   return `${hoyLima().slice(0, 7)}-01`
 }
+
+/** Hora (0-23) actual en Lima. */
+export function horaLima(d: Date = new Date()): number {
+  return Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hourCycle: 'h23', timeZone: 'America/Lima' }).format(d))
+}
+
+/** "jueves 2 de octubre" en hora de Lima. */
+export function fechaLargaLima(d: Date = new Date()): string {
+  return new Intl.DateTimeFormat('es-PE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Lima' }).format(d)
+}

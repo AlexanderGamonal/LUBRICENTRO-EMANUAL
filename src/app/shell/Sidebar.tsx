@@ -91,7 +91,7 @@ export function Sidebar({ user, expanded, overlay, isOnline, onToggle, onSignOut
 
   return (
     <aside
-      aria-label="Navegación principal"
+      aria-label="Barra lateral"
       className={cn(
         'fixed inset-y-0 left-0 z-40 flex flex-col overflow-hidden border-r border-white/5 transition-[width,box-shadow] duration-200 ease-out',
         expanded ? 'w-64' : 'w-[72px]',
@@ -130,7 +130,7 @@ export function Sidebar({ user, expanded, overlay, isOnline, onToggle, onSignOut
         )}
       </div>
 
-      <nav aria-label="Secciones" className="scroll-region flex-1 space-y-4 px-3 py-4 [@media(max-height:820px)]:space-y-2.5 [@media(max-height:820px)]:py-3">
+      <nav aria-label="Navegación principal" className="scroll-region flex-1 space-y-4 px-3 py-4 [@media(max-height:820px)]:space-y-2.5 [@media(max-height:820px)]:py-3">
         {/* Acciones frecuentes */}
         <div className={cn('space-y-2', !expanded && 'flex flex-col items-center')}>
           {PRIMARY_ACTIONS.map((a, i) => (
