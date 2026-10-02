@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { formatCurrency, formatDate, formatDateTime, hoyLima } from '@/shared/utils/formatters'
+import { formatCurrency, formatDate, formatDateTime, formatMedioPago, hoyLima } from '@/shared/utils/formatters'
 import { AlertTriangle, ClipboardList, Lock, Wallet } from 'lucide-react'
 import { Button, DataTable, EmptyState, Field, Modal, PageHeader, SegmentedControl, Skeleton } from '@/shared/ui'
 import type { Column } from '@/shared/ui'
@@ -12,9 +12,26 @@ import type { Database } from '@/shared/types/database'
 
 type CajaRow = Database['public']['Tables']['cajas']['Row']
 
-interface Resumen {
-  count: number
-  total: number
+interface MedioResumen {
+  medio: string
+  ingresos: number
+  egresos: number
+  neto: number
+}
+
+interface ResumenCaja {
+  monto_apertura: number
+  medios: MedioResumen[]
+  credito_por_cobrar: number
+}
+
+/** Una sola fuente de verdad: la base de datos calcula lo mismo que usa al cerrar la caja. */
+function resumirMedios(medios: MedioResumen[]) {
+  const efectivo = medios.find((m) => m.medio === 'efectivo')?.neto ?? 0
+  const digital = medios.filter((m) => m.medio !== 'efectivo').reduce((s, m) => s + m.neto, 0)
+  const ingresos = medios.reduce((s, m) => s + m.ingresos, 0)
+  const egresos = medios.reduce((s, m) => s + m.egresos, 0)
+  return { efectivo, digital, ingresos, egresos, total: efectivo + digital }
 }
 
 function duracion(opened: string, closed: string | null): string {
@@ -70,59 +87,24 @@ export default function CajaPage() {
     }
   }, [caja, user?.sucursal_id, queryClient])
 
-  /* ── Ventas del turno ────────────────────────────────────── */
+  /* ── Resumen del turno por medio de pago ─────────────────── */
   const {
-    data: ventasResumen,
-    isLoading: loadingVentas,
-    isError: errorVentas,
-    refetch: refetchVentas,
-  } = useQuery<Resumen>({
-    queryKey: ['ventas-caja', caja?.id],
+    data: resumen,
+    isLoading: resumenLoading,
+    isError: resumenError,
+    refetch: refetchResumen,
+  } = useQuery<ResumenCaja>({
+    queryKey: ['resumen-caja', caja?.id],
     queryFn: async () => {
-      if (!caja?.id) return { count: 0, total: 0 }
-      const { data, error } = await supabase
-        .from('ventas')
-        .select('total')
-        .eq('caja_id', caja.id)
-        .eq('estado', 'emitida')
+      if (!caja?.id) return { monto_apertura: 0, medios: [], credito_por_cobrar: 0 }
+      const { data, error } = await supabase.rpc('resumen_caja', { p_caja_id: caja.id })
       if (error) throw error
-      return {
-        count: data?.length ?? 0,
-        total: data?.reduce((s, v) => s + Number(v.total ?? 0), 0) ?? 0,
-      }
+      return data as unknown as ResumenCaja
     },
     enabled: !!caja?.id,
     retry: 1,
-    staleTime: 30_000,
-  })
-
-  /* ── Servicios del turno (por fecha de la caja) ──────────── */
-  const {
-    data: serviciosResumen,
-    isLoading: loadingServicios,
-    isError: errorServicios,
-    refetch: refetchServicios,
-  } = useQuery<Resumen>({
-    queryKey: ['servicios-caja-dia', caja?.sucursal_id, caja?.fecha],
-    queryFn: async () => {
-      // Guard: nunca disparar con fecha undefined — causaría error en Supabase
-      if (!caja?.fecha || !caja?.sucursal_id) return { count: 0, total: 0 }
-      const { data, error } = await supabase
-        .from('servicios')
-        .select('total')
-        .eq('sucursal_id', caja.sucursal_id)
-        .eq('fecha_servicio', caja.fecha)
-        .eq('estado', 'terminado')
-      if (error) throw error
-      return {
-        count: data?.length ?? 0,
-        total: data?.reduce((s, sv) => s + Number(sv.total ?? 0), 0) ?? 0,
-      }
-    },
-    // Solo habilitar cuando caja tiene fecha válida
-    enabled: !!(caja?.fecha && caja?.sucursal_id),
-    retry: 1,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: true,
   })
 
   /* ── Historial de cajas cerradas ─────────────────────────── */
@@ -176,8 +158,7 @@ export default function CajaPage() {
       })
       if (error) throw error
       await queryClient.invalidateQueries({ queryKey: ['caja-activa'] })
-      await queryClient.invalidateQueries({ queryKey: ['ventas-caja'] })
-      await queryClient.invalidateQueries({ queryKey: ['servicios-caja-dia'] })
+      await queryClient.invalidateQueries({ queryKey: ['resumen-caja'] })
       await queryClient.invalidateQueries({ queryKey: ['cajas-historial'] })
       toast.success('Caja cerrada correctamente')
       setShowCerrarForm(false)
@@ -192,9 +173,9 @@ export default function CajaPage() {
   }
 
   const today = hoyLima()
-  const resumenLoading = loadingVentas || loadingServicios
-  const totalTurno = (ventasResumen?.total ?? 0) + (serviciosResumen?.total ?? 0)
-  const esperado = caja ? Number(caja.monto_apertura) + totalTurno : 0
+  const medios = resumen?.medios ?? []
+  const totales = resumirMedios(medios)
+  const esperado = caja ? Number(caja.monto_apertura) + totales.efectivo : 0
   const diferencia = montoReal - esperado
 
   function cerrarModalCierre() {
@@ -220,10 +201,10 @@ export default function CajaPage() {
     },
     { key: 'apertura', header: 'Apertura', align: 'right', cell: (c) => formatCurrency(c.monto_apertura) },
     {
-      key: 'ingresos',
-      header: 'Ingresos',
+      key: 'esperado',
+      header: 'Efectivo esperado',
       align: 'right',
-      cell: (c) => <span className="font-medium text-sky-700">{formatCurrency(Number(c.monto_cierre_esperado ?? 0) - Number(c.monto_apertura))}</span>,
+      cell: (c) => <span className="font-medium text-sky-700">{c.monto_cierre_esperado != null ? formatCurrency(c.monto_cierre_esperado) : '—'}</span>,
     },
     {
       key: 'real',
@@ -357,63 +338,76 @@ export default function CajaPage() {
                       <Skeleton className="h-14 w-full" />
                       <Skeleton className="h-14 w-full" />
                     </div>
-                  ) : errorVentas && errorServicios ? (
+                  ) : resumenError ? (
                     <EmptyState
                       icon={AlertTriangle}
                       title="No se pudo cargar el resumen"
                       action={
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            refetchVentas()
-                            refetchServicios()
-                          }}
-                        >
+                        <Button variant="secondary" onClick={() => refetchResumen()}>
                           Reintentar
                         </Button>
                       }
                     />
                   ) : (
-                    <ul className="space-y-2" aria-label="Resumen del turno">
-                      <li className="flex items-center justify-between rounded-lg bg-sky-50 px-4 py-3 dark:bg-sky-500/10">
-                        <div>
-                          <p className="text-sm font-semibold text-sky-700 dark:text-sky-300">Ventas POS</p>
-                          <p className="text-xs text-fg-muted">
-                            {errorVentas ? (
-                              <button type="button" onClick={() => refetchVentas()} className="text-red-700 underline">
-                                Error — Reintentar
-                              </button>
-                            ) : (
-                              `${ventasResumen?.count ?? 0} transacciones`
-                            )}
-                          </p>
-                        </div>
-                        <p className="text-lg font-bold tabular-nums text-sky-700 dark:text-sky-300">{errorVentas ? '—' : formatCurrency(ventasResumen?.total ?? 0)}</p>
-                      </li>
-
-                      <li className="flex items-center justify-between rounded-lg bg-emerald-50 px-4 py-3 dark:bg-emerald-500/10">
-                        <div>
-                          <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Servicios / atenciones</p>
-                          <p className="text-xs text-fg-muted">
-                            {errorServicios ? (
-                              <button type="button" onClick={() => refetchServicios()} className="text-red-700 underline">
-                                Error — Reintentar
-                              </button>
-                            ) : (
-                              `${serviciosResumen?.count ?? 0} atenciones`
-                            )}
-                          </p>
-                        </div>
-                        <p className="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
-                          {errorServicios ? '—' : formatCurrency(serviciosResumen?.total ?? 0)}
+                    <div className="space-y-3">
+                      <div className="rounded-lg bg-primary-700 px-4 py-3 text-white">
+                        <p className="text-xs uppercase tracking-wide text-primary-100">Efectivo esperado en el cajón</p>
+                        <p className="text-2xl font-bold tabular-nums">{formatCurrency(esperado)}</p>
+                        <p className="text-xs text-primary-100">
+                          {formatCurrency(caja.monto_apertura)} de apertura {totales.efectivo < 0 ? '−' : '+'} {formatCurrency(Math.abs(totales.efectivo))} en efectivo del turno
                         </p>
-                      </li>
+                      </div>
 
-                      <li className="flex items-center justify-between rounded-lg bg-primary-700 px-4 py-3 text-white">
-                        <p className="text-sm font-semibold">Total recaudado</p>
-                        <p className="text-xl font-bold tabular-nums">{formatCurrency(totalTurno)}</p>
-                      </li>
-                    </ul>
+                      {medios.length === 0 ? (
+                        <p className="rounded-lg bg-muted px-4 py-3 text-sm text-fg-muted">Aún no hay cobros en este turno.</p>
+                      ) : (
+                        <div className="overflow-x-auto rounded-lg border border-line">
+                          <table className="w-full text-sm">
+                            <caption className="sr-only">Cobros del turno por medio de pago</caption>
+                            <thead className="bg-muted text-xs uppercase tracking-wide text-fg-muted">
+                              <tr>
+                                <th scope="col" className="px-2 py-2 sm:px-3 text-left font-semibold">Medio</th>
+                                <th scope="col" className="px-2 py-2 sm:px-3 text-right font-semibold">Ingresos</th>
+                                <th scope="col" className="px-2 py-2 sm:px-3 text-right font-semibold">Anuladas</th>
+                                <th scope="col" className="px-2 py-2 sm:px-3 text-right font-semibold">Neto</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-line">
+                              {medios.map((m) => (
+                                <tr key={m.medio}>
+                                  <th scope="row" className="px-2 py-2 sm:px-3 text-left font-medium text-fg">
+                                    {formatMedioPago(m.medio)}
+                                    {m.medio === 'efectivo' && <span className="ml-1.5 hidden rounded sm:inline-block bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200">cajón</span>}
+                                  </th>
+                                  <td className="px-2 py-2 sm:px-3 text-right tabular-nums">{formatCurrency(m.ingresos)}</td>
+                                  <td className="px-2 py-2 sm:px-3 text-right tabular-nums text-fg-muted">{m.egresos > 0 ? `−${formatCurrency(m.egresos)}` : '—'}</td>
+                                  <td className="px-2 py-2 sm:px-3 text-right font-semibold tabular-nums">{formatCurrency(m.neto)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot className="border-t-2 border-line bg-muted font-semibold">
+                              <tr>
+                                <th scope="row" className="px-2 py-2 sm:px-3 text-left">Total</th>
+                                <td className="px-2 py-2 sm:px-3 text-right tabular-nums">{formatCurrency(totales.ingresos)}</td>
+                                <td className="px-2 py-2 sm:px-3 text-right tabular-nums">{totales.egresos > 0 ? `−${formatCurrency(totales.egresos)}` : '—'}</td>
+                                <td className="px-2 py-2 sm:px-3 text-right tabular-nums">{formatCurrency(totales.total)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+
+                      <p className="text-xs text-fg-muted">
+                        Solo el efectivo se cuenta en el cajón. Yape, Plin, tarjeta y transferencia son informativos: compáralos con tu billetera o banco.
+                      </p>
+
+                      {(resumen?.credito_por_cobrar ?? 0) > 0 && (
+                        <p className="flex items-center justify-between rounded-lg bg-amber-50 px-4 py-2.5 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                          <span>A crédito en este turno (por cobrar)</span>
+                          <span className="font-semibold tabular-nums">{formatCurrency(resumen?.credito_por_cobrar ?? 0)}</span>
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -472,13 +466,13 @@ export default function CajaPage() {
               <div role="note" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 <p className="mb-0.5 font-semibold">¿Cuánto contar?</p>
                 <p>
-                  Cuenta <strong>todos</strong> los billetes y monedas del cajón. Deberías tener aproximadamente <strong>{formatCurrency(esperado)}</strong> (
-                  {formatCurrency(caja.monto_apertura)} de apertura + {formatCurrency(totalTurno)} de ventas y servicios).
+                  Cuenta solo el <strong>efectivo</strong> del cajón (billetes y monedas). Deberías tener <strong>{formatCurrency(esperado)}</strong> (
+                  {formatCurrency(caja.monto_apertura)} de apertura {totales.efectivo < 0 ? '−' : '+'} {formatCurrency(Math.abs(totales.efectivo))} en efectivo del turno).
                 </p>
               </div>
             )}
 
-            <Field label="Total de efectivo contado en el cajón (S/)" hint="Ingresa el total físico: apertura + lo recaudado durante el turno">
+            <Field label="Total de efectivo contado en el cajón (S/)" hint="Ingresa el total físico del cajón, sin contar Yape, Plin, tarjeta ni transferencias">
               {(p) => (
                 <input
                   {...p}
@@ -508,24 +502,27 @@ export default function CajaPage() {
                   <dd className="font-medium text-fg">{formatCurrency(caja.monto_apertura)}</dd>
                 </div>
                 <div className="flex justify-between text-fg-muted">
-                  <dt>Ventas POS</dt>
-                  <dd className="font-medium text-fg">{formatCurrency(ventasResumen?.total ?? 0)}</dd>
-                </div>
-                <div className="flex justify-between text-fg-muted">
-                  <dt>Servicios</dt>
-                  <dd className="font-medium text-fg">{formatCurrency(serviciosResumen?.total ?? 0)}</dd>
+                  <dt>Efectivo del turno (neto)</dt>
+                  <dd className="font-medium text-fg">{formatCurrency(totales.efectivo)}</dd>
                 </div>
                 <div className="flex justify-between border-t border-line pt-1.5 text-fg-muted">
-                  <dt>Esperado en caja</dt>
+                  <dt>Efectivo esperado</dt>
                   <dd className="font-semibold text-fg">{formatCurrency(esperado)}</dd>
                 </div>
-                <div className="flex justify-between border-t border-line pt-1.5" role="status" aria-live="polite">
-                  <dt className="font-semibold text-fg">{diferencia === 0 ? 'Cuadra' : diferencia > 0 ? 'Sobra' : 'Falta'}</dt>
-                  <dd className={cn('font-bold', diferencia >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300')}>
-                    {formatCurrency(Math.abs(diferencia))}
-                  </dd>
+                <div className="flex justify-between text-fg-muted">
+                  <dt>Digitales (no se cuentan)</dt>
+                  <dd className="font-medium text-fg">{formatCurrency(totales.digital)}</dd>
                 </div>
               </dl>
+            )}
+
+            {!resumenLoading && (
+              <div className="flex justify-between rounded-lg bg-muted px-4 py-3 text-sm" role="status" aria-live="polite">
+                <span className="font-semibold text-fg">{diferencia === 0 ? 'Cuadra' : diferencia > 0 ? 'Sobra' : 'Falta'}</span>
+                <span className={cn('font-bold', diferencia >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300')}>
+                  {formatCurrency(Math.abs(diferencia))}
+                </span>
+              </div>
             )}
           </form>
         </Modal>

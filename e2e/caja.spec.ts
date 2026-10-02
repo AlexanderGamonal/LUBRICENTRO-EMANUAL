@@ -2,6 +2,16 @@ import { test, expect } from '@playwright/test'
 import { mockSupabase } from './helpers/mockSupabase'
 import { FIXTURES } from './fixtures'
 
+const RESUMEN = {
+  monto_apertura: 100,
+  medios: [
+    { medio: 'efectivo', ingresos: 290, egresos: 50, neto: 240 },
+    { medio: 'plin', ingresos: 60, egresos: 0, neto: 60 },
+    { medio: 'yape', ingresos: 300, egresos: 0, neto: 300 },
+  ],
+  credito_por_cobrar: 25,
+}
+
 test.describe('Caja', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -17,7 +27,7 @@ test.describe('Caja', () => {
   })
 
   test('cierra el turno desde un diálogo y muestra si falta o sobra', async ({ page }) => {
-    const { rpcCalls } = await mockSupabase(page, 'admin', FIXTURES, { cerrar_caja: { caja_id: 'caja-1' } })
+    const { rpcCalls } = await mockSupabase(page, 'admin', FIXTURES, { cerrar_caja: { caja_id: 'caja-1' }, resumen_caja: RESUMEN })
     await page.goto('/caja')
     await expect(page.getByText('CAJA ABIERTA')).toBeVisible()
 
@@ -26,8 +36,12 @@ test.describe('Caja', () => {
     await expect(dialogo).toBeVisible()
     await expect(dialogo.getByLabel(/efectivo contado/)).toBeFocused()
 
+    await expect(dialogo).toContainText(/340[,.]00/)
     await dialogo.getByLabel(/efectivo contado/).fill('0')
     await expect(dialogo.getByRole('status')).toContainText('Falta')
+
+    await dialogo.getByLabel(/efectivo contado/).fill('340')
+    await expect(dialogo.getByRole('status')).toContainText('Cuadra')
 
     await dialogo.getByLabel(/efectivo contado/).fill('99999')
     await expect(dialogo.getByRole('status')).toContainText('Sobra')
@@ -41,12 +55,24 @@ test.describe('Caja', () => {
   })
 
   test('Escape cierra el diálogo sin cerrar la caja', async ({ page }) => {
-    const { rpcCalls } = await mockSupabase(page, 'admin', FIXTURES)
+    const { rpcCalls } = await mockSupabase(page, 'admin', FIXTURES, { resumen_caja: RESUMEN })
     await page.goto('/caja')
     await page.getByRole('button', { name: 'Cerrar caja' }).click()
     await expect(page.getByRole('dialog', { name: 'Confirmar cierre de caja' })).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog')).toBeHidden()
     expect(rpcCalls.filter((c) => c.name === 'cerrar_caja')).toHaveLength(0)
+  })
+
+  test('muestra el resumen por medio de pago y el efectivo esperado del cajón', async ({ page }) => {
+    await mockSupabase(page, 'admin', FIXTURES, { resumen_caja: RESUMEN })
+    await page.goto('/caja')
+    const tabla = page.getByRole('table', { name: 'Cobros del turno por medio de pago' })
+    await expect(tabla).toBeVisible()
+    await expect(tabla.getByRole('row', { name: /Efectivo/ })).toContainText(/240[,.]00/)
+    await expect(tabla.getByRole('row', { name: /Yape/ })).toContainText(/300[,.]00/)
+    await expect(tabla.getByRole('row', { name: /Total/ })).toContainText(/600[,.]00/)
+    await expect(page.getByText('Efectivo esperado en el cajón')).toBeVisible()
+    await expect(page.getByText(/A crédito en este turno/)).toBeVisible()
   })
 })

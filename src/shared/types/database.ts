@@ -758,6 +758,12 @@ export interface Database {
         Args: { p_monto_apertura?: number }
         Returns: Json
       }
+      resumen_caja: {
+        Args: {
+          p_caja_id: string
+        }
+        Returns: Json
+      }
       cerrar_caja: {
         Args: {
           p_caja_id: string
