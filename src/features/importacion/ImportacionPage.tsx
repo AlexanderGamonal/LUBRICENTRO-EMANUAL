@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Check, FolderOpen, X } from 'lucide-react'
 import { toast } from 'sonner'
 import ExcelJS from 'exceljs'
+import Papa from 'papaparse'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { cn } from '@/shared/utils/cn'
@@ -74,7 +75,19 @@ async function descargarPlantilla() {
 }
 
 function normalizarClave(key: string): string {
-  return key.toLowerCase().trim().replace(/\s+/g, '_')
+  let n = key
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '_')
+    
+  if (n === 'codigo' || n === 'cod') return 'codigo_interno'
+  if (n === 'precio') return 'precio_venta'
+  if (n === 'descripcion') return 'nombre'
+  if (n === 'codigo_barra' || n === 'ean') return 'codigo_barras'
+  if (n === 'costo_unitario') return 'costo'
+  
+  return n
 }
 
 function parsearFilas(data: Record<string, unknown>[]): FilaRaw[] {
@@ -142,6 +155,30 @@ export function ImportacionPage() {
   const procesarArchivo = useCallback((file: File) => {
     if (file.size > MAX_SIZE_MB * 1024 * 1024) {
       toast.error(`El archivo supera los ${MAX_SIZE_MB}MB permitidos`)
+      return
+    }
+
+    const isCsv = file.name.toLowerCase().endsWith('.csv')
+
+    if (isCsv) {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (!results.data || results.data.length === 0) {
+            toast.error('El archivo CSV no tiene datos')
+            return
+          }
+          const filasRaw = parsearFilas(results.data as Record<string, unknown>[])
+          const filasValidadas = filasRaw.map(validarFila)
+          setFilas(filasValidadas)
+          setStep(2)
+        },
+        error: (error) => {
+          console.error(error)
+          toast.error('Error al leer el CSV: ' + error.message)
+        }
+      })
       return
     }
 
