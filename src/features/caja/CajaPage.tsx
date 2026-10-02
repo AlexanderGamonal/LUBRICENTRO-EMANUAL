@@ -211,7 +211,7 @@ export default function CajaPage() {
       {/* Header */}
       <div className="mb-6 flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#1F3864]">Gestión de Caja</h1>
+          <h1 className="text-2xl font-bold text-primary-700">Gestión de Caja</h1>
           <p className="text-sm text-gray-500 mt-1">{formatDate(today)}</p>
         </div>
         {caja && (
@@ -230,7 +230,7 @@ export default function CajaPage() {
             onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
               activeTab === tab
-                ? 'bg-white text-[#1F3864] shadow-sm'
+                ? 'bg-white text-primary-700 shadow-sm'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -254,7 +254,7 @@ export default function CajaPage() {
             <div className="flex flex-col items-center justify-center min-h-[360px]">
               <div className="card p-10 w-full max-w-md text-center shadow-lg">
                 <div className="flex justify-center mb-6">
-                  <svg className="w-20 h-20 text-[#1F3864] opacity-80" fill="none" stroke="currentColor" viewBox="0 0 64 64" strokeWidth={1.5}>
+                  <svg className="w-20 h-20 text-primary-700 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 64 64" strokeWidth={1.5}>
                     <rect x="8" y="20" width="48" height="32" rx="4" strokeLinejoin="round" />
                     <rect x="14" y="36" width="36" height="10" rx="2" strokeLinejoin="round" />
                     <path d="M20 20V14a4 4 0 0 1 4-4h16a4 4 0 0 1 4 4v6" strokeLinejoin="round" />
@@ -311,7 +311,7 @@ export default function CajaPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-gray-400 uppercase tracking-wide">Monto apertura</p>
-                    <p className="text-2xl font-bold text-[#1F3864]">
+                    <p className="text-2xl font-bold text-primary-700">
                       {formatCurrency(caja.monto_apertura)}
                     </p>
                   </div>
@@ -332,7 +332,7 @@ export default function CajaPage() {
                       <p className="text-sm text-red-600 mb-3">No se pudo cargar el resumen</p>
                       <button
                         onClick={() => { refetchVentas(); refetchServicios() }}
-                        className="px-4 py-2 text-sm font-medium text-white bg-[#1F3864] rounded-lg hover:opacity-90"
+                        className="px-4 py-2 text-sm font-medium text-white bg-primary-700 rounded-lg hover:opacity-90"
                       >
                         Reintentar
                       </button>
@@ -374,7 +374,7 @@ export default function CajaPage() {
                       </div>
 
                       {/* Total */}
-                      <div className="flex items-center justify-between px-4 py-3 bg-[#1F3864] rounded-lg">
+                      <div className="flex items-center justify-between px-4 py-3 bg-primary-700 rounded-lg">
                         <p className="text-sm font-semibold text-white">Total recaudado</p>
                         <p className="text-xl font-bold text-white">
                           {formatCurrency(totalTurno)}
@@ -512,7 +512,7 @@ export default function CajaPage() {
                     <div className="flex items-start justify-between gap-4">
                       {/* Fecha + duración */}
                       <div className="min-w-0">
-                        <p className="font-bold text-[#1F3864] text-base">{formatDate(c.fecha)}</p>
+                        <p className="font-bold text-primary-700 text-base">{formatDate(c.fecha)}</p>
                         <p className="text-xs text-gray-400 mt-0.5">
                           {formatDateTime(c.opened_at)} → {c.closed_at ? formatDateTime(c.closed_at) : '—'}
                           <span className="ml-2 font-medium text-gray-500">({duracion(c.opened_at, c.closed_at)})</span>

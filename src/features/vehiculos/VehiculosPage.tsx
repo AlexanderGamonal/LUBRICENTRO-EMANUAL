@@ -129,7 +129,7 @@ export default function VehiculosPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[#1F3864]">Vehículos</h1>
+          <h1 className="text-2xl font-bold text-primary-700">Vehículos</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {isLoading
               ? 'Cargando...'
@@ -199,7 +199,7 @@ export default function VehiculosPage() {
                   return (
                     <tr key={v.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
-                        <span className="bg-[#1F3864] text-white px-2 py-0.5 rounded text-sm font-mono font-bold tracking-wider">
+                        <span className="bg-primary-700 text-white px-2 py-0.5 rounded text-sm font-mono font-bold tracking-wider">
                           {v.placa}
                         </span>
                       </td>
@@ -228,7 +228,7 @@ export default function VehiculosPage() {
                         <div className="flex items-center justify-end gap-3">
                           <Link
                             to={`/vehiculos/${v.id}`}
-                            className="text-xs font-medium text-[#1F3864] hover:underline"
+                            className="text-xs font-medium text-primary-700 hover:underline"
                           >
                             Ver
                           </Link>
@@ -270,7 +270,7 @@ export default function VehiculosPage() {
             return (
               <div key={v.id} className="card p-4">
                 <div className="flex items-start justify-between gap-3 mb-3">
-                  <span className="bg-[#1F3864] text-white px-3 py-1 rounded-lg text-base font-mono font-bold tracking-wider">
+                  <span className="bg-primary-700 text-white px-3 py-1 rounded-lg text-base font-mono font-bold tracking-wider">
                     {v.placa}
                   </span>
                   <span className="text-xs text-gray-400">{formatDate(v.updated_at)}</span>
@@ -298,7 +298,7 @@ export default function VehiculosPage() {
                 <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-100">
                   <Link
                     to={`/vehiculos/${v.id}`}
-                    className="text-xs font-semibold text-[#1F3864] hover:underline px-2 py-1 rounded hover:bg-[#1F3864]/5 transition-colors"
+                    className="text-xs font-semibold text-primary-700 hover:underline px-2 py-1 rounded hover:bg-primary-700/5 transition-colors"
                   >
                     Ver detalle
                   </Link>

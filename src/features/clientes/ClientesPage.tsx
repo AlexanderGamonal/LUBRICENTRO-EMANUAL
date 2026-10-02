@@ -109,7 +109,7 @@ export default function ClientesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[#1F3864]">Clientes</h1>
+          <h1 className="text-2xl font-bold text-primary-700">Clientes</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {isLoading ? '...' : `${clientes.length} cliente${clientes.length !== 1 ? 's' : ''} registrado${clientes.length !== 1 ? 's' : ''}`}
           </p>
@@ -227,7 +227,7 @@ export default function ClientesPage() {
                         <button
                           onClick={() => navigate(`/clientes/${cliente.id}/editar`)}
                           title="Editar cliente"
-                          className="p-1.5 rounded-md text-gray-500 hover:text-[#1F3864] hover:bg-[#1F3864]/10 transition-colors"
+                          className="p-1.5 rounded-md text-gray-500 hover:text-primary-700 hover:bg-primary-700/10 transition-colors"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path

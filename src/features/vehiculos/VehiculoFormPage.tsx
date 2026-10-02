@@ -200,7 +200,7 @@ function ClienteCombobox({
                 <li key={c.id}>
                   <button
                     type="button"
-                    className="w-full text-left px-4 py-2.5 hover:bg-[#1F3864]/5 transition-colors"
+                    className="w-full text-left px-4 py-2.5 hover:bg-primary-700/5 transition-colors"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleSelect(c)}
                   >
@@ -216,7 +216,7 @@ function ClienteCombobox({
           <div className="border-t border-gray-100 px-3 py-2">
             <button
               type="button"
-              className="text-xs text-gray-400 hover:text-[#1F3864] transition-colors"
+              className="text-xs text-gray-400 hover:text-primary-700 transition-colors"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 setOpen(false)
@@ -349,14 +349,14 @@ export default function VehiculoFormPage() {
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-[#1F3864] mb-4 transition-colors"
+          className="flex items-center gap-1 text-sm text-gray-500 hover:text-primary-700 mb-4 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
           Volver
         </button>
-        <h1 className="text-2xl font-bold text-[#1F3864]">
+        <h1 className="text-2xl font-bold text-primary-700">
           {isEdit ? 'Editar Vehículo' : 'Nuevo Vehículo'}
         </h1>
         <p className="text-sm text-gray-500 mt-1">

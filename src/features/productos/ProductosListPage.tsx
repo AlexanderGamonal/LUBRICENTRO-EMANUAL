@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useProductos, useProductoMutations } from './hooks/useProductos'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -38,7 +38,9 @@ function MargenBadge({ precio, costo }: { precio: number; costo: number }) {
 
 export function ProductosListPage() {
   const { user } = useAuth()
-  const [search, setSearch] = useState('')
+  const [searchParams] = useSearchParams()
+  // `?q=` llega desde el buscador global (Ctrl+K)
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
   const [categoriaId, setCategoriaId] = useState('')
   const [confirmDesactivar, setConfirmDesactivar] = useState<string | null>(null)
   const debouncedSearch = useDebounce(search, 300)
@@ -81,12 +83,14 @@ export function ProductosListPage() {
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <input
           type="text"
+          aria-label="Buscar productos"
           placeholder="Buscar por nombre, código o marca..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="input-field max-w-xs"
         />
         <select
+          aria-label="Filtrar por categoría"
           value={categoriaId}
           onChange={(e) => setCategoriaId(e.target.value)}
           className="input-field max-w-xs"

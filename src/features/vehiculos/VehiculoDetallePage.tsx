@@ -120,7 +120,7 @@ export default function VehiculoDetallePage() {
       {/* Back */}
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center gap-1 text-sm text-gray-500 hover:text-[#1F3864] mb-5 transition-colors"
+        className="flex items-center gap-1 text-sm text-gray-500 hover:text-primary-700 mb-5 transition-colors"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -167,7 +167,7 @@ export default function VehiculoDetallePage() {
               )}
               <Link
                 to={`/clientes/${cliente.id}/editar`}
-                className="text-xs text-[#1F3864] hover:underline mt-1 inline-block"
+                className="text-xs text-primary-700 hover:underline mt-1 inline-block"
               >
                 Ver cliente →
               </Link>
@@ -219,7 +219,7 @@ export default function VehiculoDetallePage() {
                     <span className="text-gray-500">
                       c/ {m.intervalo_km.toLocaleString('es-PE')} km
                       {nextKm && (
-                        <span className="ml-1 text-[#1F3864] font-medium">
+                        <span className="ml-1 text-primary-700 font-medium">
                           → {nextKm.toLocaleString('es-PE')} km
                         </span>
                       )}
@@ -252,7 +252,7 @@ export default function VehiculoDetallePage() {
             <p className="text-gray-400 text-sm mb-3">Sin atenciones registradas</p>
             <Link
               to={`/servicios/nuevo?vehiculo_id=${vehiculo.id}`}
-              className="text-sm font-medium text-[#1F3864] hover:underline"
+              className="text-sm font-medium text-primary-700 hover:underline"
             >
               Registrar primera atención →
             </Link>

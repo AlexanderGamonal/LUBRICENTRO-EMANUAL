@@ -135,19 +135,19 @@ export function InventarioPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
               <p className="text-xs sm:text-sm text-gray-500">Total Productos</p>
-              <p className="text-xl sm:text-2xl font-bold text-[#1F3864] mt-1">
+              <p className="text-xl sm:text-2xl font-bold text-primary-700 mt-1">
                 {loadingValor ? '—' : totalProductos.toLocaleString('es-PE')}
               </p>
             </div>
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
               <p className="text-xs sm:text-sm text-gray-500">Total Unidades</p>
-              <p className="text-xl sm:text-2xl font-bold text-[#1F3864] mt-1">
+              <p className="text-xl sm:text-2xl font-bold text-primary-700 mt-1">
                 {loadingValor ? '—' : totalUnidades.toLocaleString('es-PE')}
               </p>
             </div>
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 transition-shadow hover:shadow-md">
               <p className="text-xs sm:text-sm text-gray-500">Valor Inventario</p>
-              <p className="text-lg sm:text-2xl font-bold text-[#1F3864] mt-1">
+              <p className="text-lg sm:text-2xl font-bold text-primary-700 mt-1">
                 {loadingValor ? '—' : formatCurrency(totalValorVenta)}
               </p>
             </div>

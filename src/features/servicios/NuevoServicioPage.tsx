@@ -329,7 +329,7 @@ export default function NuevoServicioPage() {
           </svg>
           Volver
         </button>
-        <h1 className="text-2xl font-bold text-[#1F3864]">Nueva atención</h1>
+        <h1 className="text-2xl font-bold text-primary-700">Nueva atención</h1>
       </div>
 
       <form onSubmit={onSubmit} noValidate>
@@ -340,7 +340,7 @@ export default function NuevoServicioPage() {
 
             {/* Section A: Vehicle selection */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
-              <h2 className="text-base font-semibold text-[#1F3864]">Vehículo</h2>
+              <h2 className="text-base font-semibold text-primary-700">Vehículo</h2>
 
               {loadingVehiculoUrl && (
                 <div className="flex items-center gap-2 text-gray-500 text-sm">
@@ -375,7 +375,7 @@ export default function NuevoServicioPage() {
                           onClick={() => handleSelectVehiculo(v)}
                           className="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 text-left border-b border-gray-50 last:border-0 transition-colors"
                         >
-                          <span className="bg-[#1F3864] text-white text-sm font-mono px-2 py-0.5 rounded shrink-0">
+                          <span className="bg-primary-700 text-white text-sm font-mono px-2 py-0.5 rounded shrink-0">
                             {v.placa}
                           </span>
                           <div className="min-w-0">
@@ -399,7 +399,7 @@ export default function NuevoServicioPage() {
                         No encontrado —{' '}
                         <Link
                           to="/vehiculos/nuevo"
-                          className="text-[#1F3864] hover:underline font-medium"
+                          className="text-primary-700 hover:underline font-medium"
                         >
                           Registrar nuevo vehículo
                         </Link>
@@ -413,7 +413,7 @@ export default function NuevoServicioPage() {
                 <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
-                      <span className="bg-[#1F3864] text-white font-mono text-lg px-3 py-1 rounded inline-block">
+                      <span className="bg-primary-700 text-white font-mono text-lg px-3 py-1 rounded inline-block">
                         {vehiculoSeleccionado.placa}
                       </span>
                       <div className="text-sm text-gray-700 mt-1">
@@ -487,7 +487,7 @@ export default function NuevoServicioPage() {
             {/* Section B: Service Details */}
             {vehiculoSeleccionado && (
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
-                <h2 className="text-base font-semibold text-[#1F3864]">Detalles del servicio</h2>
+                <h2 className="text-base font-semibold text-primary-700">Detalles del servicio</h2>
 
                 <div className="grid grid-cols-2 gap-4">
                   {/* Date */}
@@ -553,7 +553,7 @@ export default function NuevoServicioPage() {
           {/* ─── RIGHT COLUMN: Products Cart ─── */}
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
-              <h2 className="text-base font-semibold text-[#1F3864]">Productos utilizados</h2>
+              <h2 className="text-base font-semibold text-primary-700">Productos utilizados</h2>
 
               {/* Product search */}
               <div ref={productDropdownRef} className="relative">
@@ -588,7 +588,7 @@ export default function NuevoServicioPage() {
                             {p.codigo_interno} · Stock: {p.stock_actual}
                           </p>
                         </div>
-                        <span className="text-sm font-semibold text-[#1F3864] shrink-0">
+                        <span className="text-sm font-semibold text-primary-700 shrink-0">
                           {formatCurrency(p.precio_venta)}
                         </span>
                       </button>
@@ -628,7 +628,7 @@ export default function NuevoServicioPage() {
                               onChange={(e) =>
                                 handleCartQtyChange(item.producto_id, Number(e.target.value))
                               }
-                              className="w-14 text-xs text-center border border-gray-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#1F3864]"
+                              className="w-14 text-xs text-center border border-gray-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary-700"
                             />
                           </div>
 
@@ -643,7 +643,7 @@ export default function NuevoServicioPage() {
                               onChange={(e) =>
                                 handleCartPriceChange(item.producto_id, Number(e.target.value))
                               }
-                              className="w-20 text-xs text-center border border-gray-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#1F3864]"
+                              className="w-20 text-xs text-center border border-gray-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary-700"
                             />
                           </div>
 
@@ -699,7 +699,7 @@ export default function NuevoServicioPage() {
                 )}
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600 font-semibold">Total a cobrar</span>
-                  <span className="text-2xl font-bold text-[#1F3864]">
+                  <span className="text-2xl font-bold text-primary-700">
                     {formatCurrency(totalFinal)}
                   </span>
                 </div>

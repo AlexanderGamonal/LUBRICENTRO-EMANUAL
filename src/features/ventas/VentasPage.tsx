@@ -129,7 +129,7 @@ function VentaItemsRow({ ventaId }: { ventaId: string }) {
     return (
       <td colSpan={8} className="px-6 py-3 bg-gray-50">
         <div className="flex items-center gap-2 text-sm text-gray-500">
-          <svg className="animate-spin w-4 h-4 text-[#1F3864]" viewBox="0 0 24 24" fill="none">
+          <svg className="animate-spin w-4 h-4 text-primary-700" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
           </svg>
@@ -165,7 +165,7 @@ function VentaItemsRow({ ventaId }: { ventaId: string }) {
                 <td className="py-1.5 text-right text-gray-700">
                   {formatCurrency(item.precio_unitario)}
                 </td>
-                <td className="py-1.5 text-right font-semibold text-[#1F3864]">
+                <td className="py-1.5 text-right font-semibold text-primary-700">
                   {formatCurrency(item.subtotal)}
                 </td>
               </tr>
@@ -363,7 +363,7 @@ export default function VentasPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#1F3864]">Ventas</h1>
+          <h1 className="text-2xl font-bold text-primary-700">Ventas</h1>
           <p className="text-sm text-gray-500 mt-0.5">Historial y gestión de ventas</p>
         </div>
         <button
@@ -388,7 +388,7 @@ export default function VentasPage() {
               className={cn(
                 'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
                 periodo === opt.key
-                  ? 'bg-white text-[#1F3864] shadow-sm font-semibold'
+                  ? 'bg-white text-primary-700 shadow-sm font-semibold'
                   : 'text-gray-600 hover:text-gray-800'
               )}
             >
@@ -406,7 +406,7 @@ export default function VentasPage() {
               className={cn(
                 'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
                 filtroEstado === opt.key
-                  ? 'bg-white text-[#1F3864] shadow-sm font-semibold'
+                  ? 'bg-white text-primary-700 shadow-sm font-semibold'
                   : 'text-gray-600 hover:text-gray-800'
               )}
             >
@@ -426,7 +426,7 @@ export default function VentasPage() {
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
             Total vendido
           </p>
-          <p className="text-2xl font-bold text-[#1F3864]">
+          <p className="text-2xl font-bold text-primary-700">
             {formatCurrency(resumen.totalVendido)}
           </p>
           <p className="text-xs text-gray-400 mt-1">Solo ventas emitidas</p>
@@ -435,7 +435,7 @@ export default function VentasPage() {
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
             Cantidad de ventas
           </p>
-          <p className="text-2xl font-bold text-[#1F3864]">{resumen.cantidadVentas}</p>
+          <p className="text-2xl font-bold text-primary-700">{resumen.cantidadVentas}</p>
           <p className="text-xs text-gray-400 mt-1">Ventas emitidas en el período</p>
         </div>
         <div className="card p-5">
@@ -521,7 +521,7 @@ export default function VentasPage() {
                         <td className="px-4 py-3">
                           <button
                             onClick={() => toggleRow(venta.id)}
-                            className="text-gray-400 hover:text-[#1F3864] transition-colors"
+                            className="text-gray-400 hover:text-primary-700 transition-colors"
                             aria-label={isExpanded ? 'Colapsar' : 'Expandir'}
                           >
                             <svg
@@ -563,7 +563,7 @@ export default function VentasPage() {
 
                         {/* Items */}
                         <td className="px-4 py-3 text-center">
-                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#1F3864]/10 text-[#1F3864] text-xs font-bold">
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary-700/10 text-primary-700 text-xs font-bold">
                             {venta.total_items}
                           </span>
                         </td>

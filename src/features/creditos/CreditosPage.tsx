@@ -299,7 +299,7 @@ export default function CreditosPage() {
     <div className="animate-fade-in p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#1F3864]">Créditos</h1>
+        <h1 className="text-2xl font-bold text-primary-700">Créditos</h1>
         <p className="text-sm text-gray-500 mt-0.5">Gestión de cuentas por cobrar</p>
       </div>
 
@@ -314,7 +314,7 @@ export default function CreditosPage() {
             </div>
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wide">Créditos activos</p>
-              <p className="text-2xl font-bold text-[#1F3864]">{creditos.length}</p>
+              <p className="text-2xl font-bold text-primary-700">{creditos.length}</p>
             </div>
           </div>
         </div>
@@ -361,7 +361,7 @@ export default function CreditosPage() {
               onClick={() => setActiveTab(tab.value)}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
                 activeTab === tab.value
-                  ? 'bg-white text-[#1F3864] shadow-sm'
+                  ? 'bg-white text-primary-700 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -369,7 +369,7 @@ export default function CreditosPage() {
               {count > 0 && (
                 <span
                   className={`ml-1.5 text-xs font-semibold px-1.5 py-0.5 rounded-full ${
-                    activeTab === tab.value ? 'bg-[#1F3864]/10 text-[#1F3864]' : 'bg-gray-200 text-gray-500'
+                    activeTab === tab.value ? 'bg-primary-700/10 text-primary-700' : 'bg-gray-200 text-gray-500'
                   }`}
                 >
                   {count}

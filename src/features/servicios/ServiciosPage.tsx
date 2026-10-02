@@ -118,7 +118,7 @@ export default function ServiciosPage() {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-2xl font-bold text-[#1F3864]">Servicios / Atenciones</h1>
+        <h1 className="text-2xl font-bold text-primary-700">Servicios / Atenciones</h1>
         <Link
           to="/servicios/nuevo"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-semibold shadow-sm hover:opacity-90 transition-opacity"
@@ -136,8 +136,9 @@ export default function ServiciosPage() {
         {/* Date range */}
         <div className="flex flex-wrap gap-3 items-center">
           <div className="flex items-center gap-2">
-            <label className="label-text whitespace-nowrap">Desde</label>
+            <label htmlFor="servicios-desde" className="label-text whitespace-nowrap">Desde</label>
             <input
+              id="servicios-desde"
               type="date"
               className="input-field py-1.5 text-sm"
               value={desde}
@@ -146,8 +147,9 @@ export default function ServiciosPage() {
             />
           </div>
           <div className="flex items-center gap-2">
-            <label className="label-text whitespace-nowrap">Hasta</label>
+            <label htmlFor="servicios-hasta" className="label-text whitespace-nowrap">Hasta</label>
             <input
+              id="servicios-hasta"
               type="date"
               className="input-field py-1.5 text-sm"
               value={hasta}
@@ -166,8 +168,8 @@ export default function ServiciosPage() {
               className={cn(
                 'px-3 py-1 rounded-full text-sm font-medium border transition-colors',
                 estadoFiltro === opt.value
-                  ? 'bg-[#1F3864] text-white border-[#1F3864]'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-[#1F3864] hover:text-[#1F3864]'
+                  ? 'bg-primary-700 text-white border-primary-700'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-primary-700 hover:text-primary-700'
               )}
             >
               {opt.label}
@@ -210,7 +212,7 @@ export default function ServiciosPage() {
                     <td className="px-4 py-3">
                       {s.vehiculos?.placa ? (
                         <div>
-                          <span className="bg-[#1F3864] text-white text-xs font-mono px-2 py-0.5 rounded">
+                          <span className="bg-primary-700 text-white text-xs font-mono px-2 py-0.5 rounded">
                             {s.vehiculos.placa}
                           </span>
                           {(s.vehiculos.marca_vehiculo || s.vehiculos.modelo) && (
@@ -248,7 +250,7 @@ export default function ServiciosPage() {
                       {s.vehiculo_id && (
                         <Link
                           to={`/vehiculos/${s.vehiculo_id}`}
-                          className="text-[#1F3864] text-xs hover:underline"
+                          className="text-primary-700 text-xs hover:underline"
                         >
                           Ver vehículo
                         </Link>
@@ -281,7 +283,7 @@ export default function ServiciosPage() {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   {s.vehiculos?.placa && (
-                    <span className="bg-[#1F3864] text-white text-xs font-mono px-2 py-0.5 rounded">
+                    <span className="bg-primary-700 text-white text-xs font-mono px-2 py-0.5 rounded">
                       {s.vehiculos.placa}
                     </span>
                   )}
@@ -311,13 +313,13 @@ export default function ServiciosPage() {
               </div>
 
               <div className="flex items-center justify-between pt-1 border-t border-gray-50">
-                <span className="text-base font-semibold text-[#1F3864]">
+                <span className="text-base font-semibold text-primary-700">
                   {formatCurrency(s.total)}
                 </span>
                 {s.vehiculo_id && (
                   <Link
                     to={`/vehiculos/${s.vehiculo_id}`}
-                    className="text-[#1F3864] text-xs hover:underline"
+                    className="text-primary-700 text-xs hover:underline"
                   >
                     Ver vehículo →
                   </Link>

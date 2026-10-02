@@ -174,14 +174,14 @@ export default function ClienteFormPage() {
       <div className="mb-8">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-[#1F3864] mb-4 transition-colors"
+          className="flex items-center gap-1 text-sm text-gray-500 hover:text-primary-700 mb-4 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
           Volver
         </button>
-        <h1 className="text-2xl font-bold text-[#1F3864]">
+        <h1 className="text-2xl font-bold text-primary-700">
           {isEdit ? 'Editar Cliente' : 'Nuevo Cliente'}
         </h1>
         <p className="text-sm text-gray-500 mt-1">
@@ -225,7 +225,7 @@ export default function ClienteFormPage() {
                       key={tipo}
                       className={`flex items-center gap-2.5 cursor-pointer px-4 py-2.5 rounded-lg border-2 transition-all ${
                         field.value === tipo
-                          ? 'border-[#1F3864] bg-[#1F3864]/5 text-[#1F3864]'
+                          ? 'border-primary-700 bg-primary-700/5 text-primary-700'
                           : 'border-gray-200 text-gray-600 hover:border-gray-300'
                       }`}
                     >
@@ -238,11 +238,11 @@ export default function ClienteFormPage() {
                       />
                       <span
                         className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                          field.value === tipo ? 'border-[#1F3864]' : 'border-gray-300'
+                          field.value === tipo ? 'border-primary-700' : 'border-gray-300'
                         }`}
                       >
                         {field.value === tipo && (
-                          <span className="w-2 h-2 rounded-full bg-[#1F3864]" />
+                          <span className="w-2 h-2 rounded-full bg-primary-700" />
                         )}
                       </span>
                       <span className="font-medium capitalize">

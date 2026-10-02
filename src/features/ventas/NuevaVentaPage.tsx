@@ -124,7 +124,7 @@ function ReceiptModal({ venta, items, vendedorNombre, onNuevaVenta }: ReceiptMod
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h2 className="text-lg font-bold text-[#1F3864]">Lubricentro E' Manuel</h2>
+            <h2 className="text-lg font-bold text-primary-700">Lubricentro E' Manuel</h2>
             <p className="text-sm text-gray-500">Comprobante de Venta</p>
           </div>
 
@@ -195,7 +195,7 @@ function ReceiptModal({ venta, items, vendedorNombre, onNuevaVenta }: ReceiptMod
                 <span>-{formatCurrency(venta.descuento)}</span>
               </div>
             )}
-            <div className="flex justify-between text-[#1F3864] font-bold text-lg border-t border-gray-200 pt-2 mt-2">
+            <div className="flex justify-between text-primary-700 font-bold text-lg border-t border-gray-200 pt-2 mt-2">
               <span>TOTAL:</span>
               <span>{formatCurrency(venta.total)}</span>
             </div>
@@ -319,7 +319,7 @@ function PaymentModal({
         <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Cobrar</h2>
-            <p className="text-2xl font-bold text-[#1F3864] mt-0.5">{formatCurrency(total)}</p>
+            <p className="text-2xl font-bold text-primary-700 mt-0.5">{formatCurrency(total)}</p>
           </div>
           <button
             onClick={onClose}
@@ -345,7 +345,7 @@ function PaymentModal({
                   className={cn(
                     'flex flex-col items-center justify-center py-3 px-2 rounded-xl border-2 transition-all font-medium gap-1',
                     medioPago === opt.value
-                      ? 'border-[#1F3864] bg-blue-50 text-[#1F3864]'
+                      ? 'border-primary-700 bg-blue-50 text-primary-700'
                       : 'border-gray-200 hover:border-gray-300 text-gray-600 hover:bg-gray-50'
                   )}
                 >
@@ -452,7 +452,7 @@ function PaymentModal({
           </div>
 
           {/* Summary */}
-          <div className="bg-[#1F3864]/5 rounded-xl p-4 text-sm space-y-1.5">
+          <div className="bg-primary-700/5 rounded-xl p-4 text-sm space-y-1.5">
             <div className="flex justify-between text-gray-600">
               <span>Subtotal:</span>
               <span>{formatCurrency(subtotal)}</span>
@@ -463,7 +463,7 @@ function PaymentModal({
                 <span>-{formatCurrency(descuento)}</span>
               </div>
             )}
-            <div className="flex justify-between text-[#1F3864] font-bold text-base border-t border-[#1F3864]/20 pt-1.5 mt-1.5">
+            <div className="flex justify-between text-primary-700 font-bold text-base border-t border-primary-700/20 pt-1.5 mt-1.5">
               <span>TOTAL A COBRAR:</span>
               <span>{formatCurrency(total)}</span>
             </div>
@@ -520,7 +520,7 @@ function ProductCard({ producto, onClick }: ProductCardProps) {
         'text-left w-full bg-white border-2 rounded-xl p-3 transition-all',
         isAgotado
           ? 'opacity-50 cursor-not-allowed border-gray-200'
-          : 'border-gray-200 hover:border-[#0ea5e9] hover:shadow-md active:scale-[0.97] cursor-pointer'
+          : 'border-gray-200 hover:border-accent-500 hover:shadow-md active:scale-[0.97] cursor-pointer'
       )}
     >
       <div className="flex justify-between items-start gap-2 mb-1">
@@ -535,7 +535,7 @@ function ProductCard({ producto, onClick }: ProductCardProps) {
         <p className="text-xs text-gray-400 mb-1 truncate">{producto.marca}</p>
       )}
       <p className="text-xs font-mono text-gray-400 mb-2">{producto.codigo_interno}</p>
-      <p className="text-base font-bold text-[#1F3864]">{formatCurrency(producto.precio_venta)}</p>
+      <p className="text-base font-bold text-primary-700">{formatCurrency(producto.precio_venta)}</p>
       <p className={cn('text-xs mt-0.5', stockCfg.textClass)}>{stockCfg.label}</p>
     </button>
   )
@@ -593,10 +593,10 @@ function ClienteSelector({
   if (clienteId) {
     return (
       <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-        <svg className="w-4 h-4 text-[#1F3864] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-primary-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
-        <span className="flex-1 text-sm font-medium text-[#1F3864] truncate">{clienteNombre}</span>
+        <span className="flex-1 text-sm font-medium text-primary-700 truncate">{clienteNombre}</span>
         <button
           onClick={onClear}
           className="text-gray-400 hover:text-red-500 transition-colors"
@@ -724,7 +724,7 @@ function CartItemRow({ item, onQuantityChange, onPriceChange, onRemove }: CartIt
               const val = parseInt(e.target.value, 10)
               if (!isNaN(val) && val >= 1) onQuantityChange(item.producto_id, val)
             }}
-            className="w-12 text-center text-sm font-semibold border border-gray-300 rounded-lg py-1 focus:outline-none focus:ring-1 focus:ring-[#0ea5e9] focus:border-[#0ea5e9]"
+            className="w-12 text-center text-sm font-semibold border border-gray-300 rounded-lg py-1 focus:outline-none focus:ring-1 focus:ring-accent-500 focus:border-accent-500"
           />
           <button
             onClick={() => onQuantityChange(item.producto_id, item.cantidad + 1)}
@@ -752,7 +752,7 @@ function CartItemRow({ item, onQuantityChange, onPriceChange, onRemove }: CartIt
                   setEditingPrice(false)
                 }
               }}
-              className="w-24 text-right text-sm border border-[#0ea5e9] rounded-lg py-0.5 px-1.5 focus:outline-none focus:ring-1 focus:ring-[#0ea5e9]"
+              className="w-24 text-right text-sm border border-accent-500 rounded-lg py-0.5 px-1.5 focus:outline-none focus:ring-1 focus:ring-accent-500"
               autoFocus
             />
           ) : (
@@ -762,12 +762,12 @@ function CartItemRow({ item, onQuantityChange, onPriceChange, onRemove }: CartIt
                 setEditingPrice(true)
               }}
               title="Haz clic para editar el precio"
-              className="text-sm text-gray-500 hover:text-[#1F3864] hover:underline underline-offset-2 transition-colors"
+              className="text-sm text-gray-500 hover:text-primary-700 hover:underline underline-offset-2 transition-colors"
             >
               {formatCurrency(item.precio_unitario)}
             </button>
           )}
-          <p className="text-sm font-bold text-[#1F3864]">{formatCurrency(item.subtotal)}</p>
+          <p className="text-sm font-bold text-primary-700">{formatCurrency(item.subtotal)}</p>
         </div>
       </div>
     </div>
@@ -960,7 +960,7 @@ export default function NuevaVentaPage() {
     return (
       <div className="flex items-center justify-center h-full p-8">
         <div className="flex items-center gap-3 text-gray-500">
-          <svg className="animate-spin w-6 h-6 text-[#1F3864]" viewBox="0 0 24 24" fill="none">
+          <svg className="animate-spin w-6 h-6 text-primary-700" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
           </svg>
@@ -1015,7 +1015,7 @@ export default function NuevaVentaPage() {
   // ── Main POS layout ──────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-full bg-[#f1f5f9] overflow-hidden">
+    <div className="flex flex-col h-full bg-canvas overflow-hidden">
       {/* Mobile tab switcher */}
       <div className="lg:hidden flex bg-white border-b border-gray-200 p-2 gap-2 shrink-0">
         <button
@@ -1156,7 +1156,7 @@ export default function NuevaVentaPage() {
               <h2 className="font-bold text-gray-800 text-base">
                 Carrito
                 {totalItems > 0 && (
-                  <span className="ml-2 text-xs font-semibold text-[#1F3864] bg-[#1F3864]/10 px-2 py-0.5 rounded-full">
+                  <span className="ml-2 text-xs font-semibold text-primary-700 bg-primary-700/10 px-2 py-0.5 rounded-full">
                     {totalItems} {totalItems === 1 ? 'item' : 'items'}
                   </span>
                 )}
@@ -1260,7 +1260,7 @@ export default function NuevaVentaPage() {
                   <span>−{formatCurrency(descuentoClamp)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-[#1F3864] font-bold text-lg border-t border-gray-200 pt-1.5 mt-0.5">
+              <div className="flex justify-between text-primary-700 font-bold text-lg border-t border-gray-200 pt-1.5 mt-0.5">
                 <span>TOTAL:</span>
                 <span>{formatCurrency(total)}</span>
               </div>
