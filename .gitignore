@@ -30,3 +30,9 @@ workbox-*.js
 
 # Archivos Locales
 ARCHIVOS/
+
+# Salidas de pruebas
+playwright-report/
+test-results/
+e2e-shots/
+coverage/

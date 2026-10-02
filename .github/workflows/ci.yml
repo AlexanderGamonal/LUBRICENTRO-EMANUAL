@@ -39,6 +39,6 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || '\''https://placeholder.supabase.co'\'' }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || '\''placeholder-key'\'' }}
-          VITE_PWA_BASE_URL: ${{ secrets.VITE_PWA_BASE_URL || '\''https://pos.lubricentromanuel.com'\'' }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'placeholder-key' }}
+          VITE_PWA_BASE_URL: ${{ secrets.VITE_PWA_BASE_URL || 'https://pos.lubricentromanuel.com' }}

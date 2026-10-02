@@ -10,6 +10,10 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
+    // En entornos sin descarga de navegadores se puede apuntar a un Chromium ya instalado.
+    launchOptions: process.env.PW_CHROMIUM_PATH
+      ? { executablePath: process.env.PW_CHROMIUM_PATH }
+      : {},
   },
   projects: [
     {
@@ -18,8 +22,13 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
+    command: 'npm run dev -- --port 5173 --strictPort',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
+    // Valores falsos: las pruebas e2e interceptan Supabase con mockSupabase().
+    env: {
+      VITE_SUPABASE_URL: 'https://mock.supabase.co',
+      VITE_SUPABASE_ANON_KEY: 'mock-anon-key',
+    },
   },
 });
