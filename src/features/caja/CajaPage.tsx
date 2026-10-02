@@ -3,14 +3,35 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { formatCurrency, formatDate, formatDateTime } from '@/shared/utils/formatters'
+import { formatCurrency, formatDate, formatDateTime, formatMedioPago, hoyLima } from '@/shared/utils/formatters'
+import { AlertTriangle, ClipboardList, Lock, Wallet } from 'lucide-react'
+import { Button, DataTable, EmptyState, Field, Modal, PageHeader, SegmentedControl, Skeleton } from '@/shared/ui'
+import type { Column } from '@/shared/ui'
+import { cn } from '@/shared/utils/cn'
 import type { Database } from '@/shared/types/database'
 
 type CajaRow = Database['public']['Tables']['cajas']['Row']
 
-interface Resumen {
-  count: number
-  total: number
+interface MedioResumen {
+  medio: string
+  ingresos: number
+  egresos: number
+  neto: number
+}
+
+interface ResumenCaja {
+  monto_apertura: number
+  medios: MedioResumen[]
+  credito_por_cobrar: number
+}
+
+/** Una sola fuente de verdad: la base de datos calcula lo mismo que usa al cerrar la caja. */
+function resumirMedios(medios: MedioResumen[]) {
+  const efectivo = medios.find((m) => m.medio === 'efectivo')?.neto ?? 0
+  const digital = medios.filter((m) => m.medio !== 'efectivo').reduce((s, m) => s + m.neto, 0)
+  const ingresos = medios.reduce((s, m) => s + m.ingresos, 0)
+  const egresos = medios.reduce((s, m) => s + m.egresos, 0)
+  return { efectivo, digital, ingresos, egresos, total: efectivo + digital }
 }
 
 function duracion(opened: string, closed: string | null): string {
@@ -66,59 +87,24 @@ export default function CajaPage() {
     }
   }, [caja, user?.sucursal_id, queryClient])
 
-  /* ── Ventas del turno ────────────────────────────────────── */
+  /* ── Resumen del turno por medio de pago ─────────────────── */
   const {
-    data: ventasResumen,
-    isLoading: loadingVentas,
-    isError: errorVentas,
-    refetch: refetchVentas,
-  } = useQuery<Resumen>({
-    queryKey: ['ventas-caja', caja?.id],
+    data: resumen,
+    isLoading: resumenLoading,
+    isError: resumenError,
+    refetch: refetchResumen,
+  } = useQuery<ResumenCaja>({
+    queryKey: ['resumen-caja', caja?.id],
     queryFn: async () => {
-      if (!caja?.id) return { count: 0, total: 0 }
-      const { data, error } = await supabase
-        .from('ventas')
-        .select('total')
-        .eq('caja_id', caja.id)
-        .eq('estado', 'emitida')
+      if (!caja?.id) return { monto_apertura: 0, medios: [], credito_por_cobrar: 0 }
+      const { data, error } = await supabase.rpc('resumen_caja', { p_caja_id: caja.id })
       if (error) throw error
-      return {
-        count: data?.length ?? 0,
-        total: data?.reduce((s, v) => s + Number(v.total ?? 0), 0) ?? 0,
-      }
+      return data as unknown as ResumenCaja
     },
     enabled: !!caja?.id,
     retry: 1,
-    staleTime: 30_000,
-  })
-
-  /* ── Servicios del turno (por fecha de la caja) ──────────── */
-  const {
-    data: serviciosResumen,
-    isLoading: loadingServicios,
-    isError: errorServicios,
-    refetch: refetchServicios,
-  } = useQuery<Resumen>({
-    queryKey: ['servicios-caja-dia', caja?.sucursal_id, caja?.fecha],
-    queryFn: async () => {
-      // Guard: nunca disparar con fecha undefined — causaría error en Supabase
-      if (!caja?.fecha || !caja?.sucursal_id) return { count: 0, total: 0 }
-      const { data, error } = await supabase
-        .from('servicios')
-        .select('total')
-        .eq('sucursal_id', caja.sucursal_id)
-        .eq('fecha_servicio', caja.fecha)
-        .eq('estado', 'terminado')
-      if (error) throw error
-      return {
-        count: data?.length ?? 0,
-        total: data?.reduce((s, sv) => s + Number(sv.total ?? 0), 0) ?? 0,
-      }
-    },
-    // Solo habilitar cuando caja tiene fecha válida
-    enabled: !!(caja?.fecha && caja?.sucursal_id),
-    retry: 1,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: true,
   })
 
   /* ── Historial de cajas cerradas ─────────────────────────── */
@@ -172,8 +158,7 @@ export default function CajaPage() {
       })
       if (error) throw error
       await queryClient.invalidateQueries({ queryKey: ['caja-activa'] })
-      await queryClient.invalidateQueries({ queryKey: ['ventas-caja'] })
-      await queryClient.invalidateQueries({ queryKey: ['servicios-caja-dia'] })
+      await queryClient.invalidateQueries({ queryKey: ['resumen-caja'] })
       await queryClient.invalidateQueries({ queryKey: ['cajas-historial'] })
       toast.success('Caja cerrada correctamente')
       setShowCerrarForm(false)
@@ -187,375 +172,360 @@ export default function CajaPage() {
     }
   }
 
-  const today = new Date().toISOString()
-  const resumenLoading = loadingVentas || loadingServicios
-  const totalTurno = (ventasResumen?.total ?? 0) + (serviciosResumen?.total ?? 0)
+  const today = hoyLima()
+  const medios = resumen?.medios ?? []
+  const totales = resumirMedios(medios)
+  const esperado = caja ? Number(caja.monto_apertura) + totales.efectivo : 0
+  const diferencia = montoReal - esperado
+
+  function cerrarModalCierre() {
+    if (cerrando) return
+    setShowCerrarForm(false)
+    setMontoReal(0)
+    setObservaciones('')
+  }
+
+  const columnasHistorial: Column<CajaRow>[] = [
+    {
+      key: 'fecha',
+      header: 'Fecha',
+      mobile: 'title',
+      cell: (c) => (
+        <div>
+          <p className="font-bold text-primary-700">{formatDate(c.fecha)}</p>
+          <p className="text-xs font-normal text-fg-subtle">
+            {formatDateTime(c.opened_at)} → {c.closed_at ? formatDateTime(c.closed_at) : '—'} ({duracion(c.opened_at, c.closed_at)})
+          </p>
+        </div>
+      ),
+    },
+    { key: 'apertura', header: 'Apertura', align: 'right', cell: (c) => formatCurrency(c.monto_apertura) },
+    {
+      key: 'esperado',
+      header: 'Efectivo esperado',
+      align: 'right',
+      cell: (c) => <span className="font-medium text-sky-700">{c.monto_cierre_esperado != null ? formatCurrency(c.monto_cierre_esperado) : '—'}</span>,
+    },
+    {
+      key: 'real',
+      header: 'Real contado',
+      align: 'right',
+      cell: (c) => <span className="font-medium text-fg">{c.monto_cierre_real != null ? formatCurrency(c.monto_cierre_real) : '—'}</span>,
+    },
+    {
+      key: 'dif',
+      header: 'Diferencia',
+      align: 'right',
+      cell: (c) => {
+        const dif = Number(c.diferencia ?? 0)
+        return (
+          <span
+            className={cn(
+              'inline-block rounded-full px-3 py-1 text-sm font-bold',
+              dif > 0 ? 'bg-green-100 text-green-700' : dif < 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700',
+            )}
+          >
+            {dif > 0 ? '+' : ''}
+            {formatCurrency(dif)}
+          </span>
+        )
+      },
+    },
+    {
+      key: 'obs',
+      header: 'Observaciones',
+      hideBelowLg: true,
+      className: 'max-w-[220px] truncate text-xs italic',
+      cell: (c) => c.observaciones ?? '—',
+    },
+  ]
 
   /* ── Loading inicial ──────────────────────────────────────── */
   if (loadingCaja) {
     return (
-      <div className="animate-fade-in p-6 max-w-3xl mx-auto">
-        <div className="mb-6">
-          <div className="h-8 w-56 bg-gray-200 rounded animate-pulse mb-2" />
-          <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
-        </div>
-        <div className="card p-8">
-          <div className="h-40 bg-gray-100 rounded animate-pulse" />
-        </div>
+      <div className="mx-auto max-w-3xl animate-fade-in p-4 sm:p-6" aria-busy="true">
+        <Skeleton className="mb-2 h-8 w-56" />
+        <Skeleton className="mb-6 h-4 w-32" />
+        <Skeleton className="h-40 w-full" />
       </div>
     )
   }
 
   return (
-    <div className="animate-fade-in p-6 max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="mb-6 flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[#1F3864]">Gestión de Caja</h1>
-          <p className="text-sm text-gray-500 mt-1">{formatDate(today)}</p>
-        </div>
-        {caja && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            CAJA ABIERTA
-          </span>
-        )}
-      </div>
+    <div className="mx-auto max-w-3xl animate-fade-in p-4 sm:p-6">
+      <PageHeader
+        title="Gestión de caja"
+        description={formatDate(today)}
+        actions={
+          caja && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-green-600" aria-hidden="true" />
+              CAJA ABIERTA
+            </span>
+          )
+        }
+      />
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
-        {(['turno', 'historial'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-              activeTab === tab
-                ? 'bg-white text-[#1F3864] shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {tab === 'turno' ? 'Turno Actual' : 'Historial'}
-            {tab === 'historial' && historial.length > 0 && (
-              <span className="ml-1.5 text-xs bg-gray-200 text-gray-600 rounded-full px-1.5 py-0.5">
-                {historial.length}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        label="Sección de caja"
+        value={activeTab}
+        onChange={setActiveTab}
+        className="mb-5"
+        options={[
+          { value: 'turno', label: 'Turno actual' },
+          { value: 'historial', label: 'Historial', count: historial.length },
+        ]}
+      />
 
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* TAB: TURNO ACTUAL                                      */}
-      {/* ═══════════════════════════════════════════════════════ */}
       {activeTab === 'turno' && (
         <>
           {!caja ? (
-            /* ── Abrir Caja ──────────────────────────────────── */
-            <div className="flex flex-col items-center justify-center min-h-[360px]">
-              <div className="card p-10 w-full max-w-md text-center shadow-lg">
-                <div className="flex justify-center mb-6">
-                  <svg className="w-20 h-20 text-[#1F3864] opacity-80" fill="none" stroke="currentColor" viewBox="0 0 64 64" strokeWidth={1.5}>
-                    <rect x="8" y="20" width="48" height="32" rx="4" strokeLinejoin="round" />
-                    <rect x="14" y="36" width="36" height="10" rx="2" strokeLinejoin="round" />
-                    <path d="M20 20V14a4 4 0 0 1 4-4h16a4 4 0 0 1 4 4v6" strokeLinejoin="round" />
-                    <circle cx="32" cy="29" r="4" />
-                    <line x1="20" y1="52" x2="20" y2="56" />
-                    <line x1="44" y1="52" x2="44" y2="56" />
-                  </svg>
+            <div className="flex min-h-[320px] items-center justify-center">
+              <form
+                className="card w-full max-w-md p-6 text-center shadow-lg sm:p-8"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  handleAbrirCaja()
+                }}
+              >
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-700/10 text-primary-700">
+                  <Wallet className="h-8 w-8" aria-hidden="true" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800 mb-1">No hay caja abierta</h2>
-                <p className="text-sm text-gray-500 mb-8">
-                  Ingresa el monto de apertura para comenzar el turno
-                </p>
-                <div className="text-left mb-6">
-                  <label className="label-text">Monto de apertura (S/)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={montoApertura}
-                    onChange={(e) => setMontoApertura(parseFloat(e.target.value) || 0)}
-                    className="input-field"
-                    placeholder="0.00"
-                  />
-                </div>
-                <button
-                  onClick={handleAbrirCaja}
-                  disabled={abriendo}
-                  className="w-full py-3 px-6 text-white font-semibold rounded-lg transition-opacity disabled:opacity-60"
-                  style={{ background: 'linear-gradient(135deg, #1F3864, #0ea5e9)' }}
-                >
-                  {abriendo ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                      </svg>
-                      Abriendo...
-                    </span>
-                  ) : 'Abrir Caja'}
-                </button>
-              </div>
+                <h2 className="mb-1 text-xl font-bold text-fg">No hay caja abierta</h2>
+                <p className="mb-6 text-sm text-fg-muted">Ingresa el monto de apertura para comenzar el turno</p>
+                <Field label="Monto de apertura (S/)" className="mb-5 text-left">
+                  {(p) => (
+                    <input
+                      {...p}
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step={0.01}
+                      value={montoApertura}
+                      onChange={(e) => setMontoApertura(parseFloat(e.target.value) || 0)}
+                      className="input-field"
+                      placeholder="0.00"
+                    />
+                  )}
+                </Field>
+                <Button type="submit" size="lg" block loading={abriendo}>
+                  {abriendo ? 'Abriendo…' : 'Abrir caja'}
+                </Button>
+              </form>
             </div>
           ) : (
-            /* ── Caja abierta ────────────────────────────────── */
             <div className="space-y-4">
-              {/* Status + apertura */}
-              <div className="card p-6 shadow-md">
-                <div className="flex items-start justify-between mb-4">
+              <section className="card p-4 shadow-md sm:p-6" aria-label="Turno actual">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm text-gray-500">
-                      Apertura: <span className="font-medium text-gray-700">{formatDateTime(caja.opened_at)}</span>
+                    <p className="text-sm text-fg-muted">
+                      Apertura: <span className="font-medium text-fg">{formatDateTime(caja.opened_at)}</span>
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5">Fecha de turno: {formatDate(caja.fecha)}</p>
+                    <p className="mt-0.5 text-xs text-fg-subtle">Fecha de turno: {formatDate(caja.fecha)}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-gray-400 uppercase tracking-wide">Monto apertura</p>
-                    <p className="text-2xl font-bold text-[#1F3864]">
-                      {formatCurrency(caja.monto_apertura)}
-                    </p>
+                    <p className="text-xs uppercase tracking-wide text-fg-muted">Monto apertura</p>
+                    <p className="font-display text-2xl font-bold tabular-nums text-primary-700">{formatCurrency(caja.monto_apertura)}</p>
                   </div>
                 </div>
 
-                {/* Resumen del turno */}
-                <div className="border-t border-gray-100 pt-4">
-                  <h3 className="text-sm font-semibold text-gray-600 mb-3">Resumen del turno</h3>
+                <div className="border-t border-line pt-4">
+                  <h3 className="mb-3 text-sm font-semibold text-fg-muted">Resumen del turno</h3>
 
                   {resumenLoading ? (
-                    <div className="space-y-2">
-                      <div className="h-12 bg-gray-100 rounded animate-pulse" />
-                      <div className="h-12 bg-gray-100 rounded animate-pulse" />
-                      <div className="h-14 bg-gray-100 rounded animate-pulse" />
+                    <div className="space-y-2" aria-busy="true">
+                      <Skeleton className="h-14 w-full" />
+                      <Skeleton className="h-14 w-full" />
+                      <Skeleton className="h-14 w-full" />
                     </div>
-                  ) : (errorVentas && errorServicios) ? (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-red-600 mb-3">No se pudo cargar el resumen</p>
-                      <button
-                        onClick={() => { refetchVentas(); refetchServicios() }}
-                        className="px-4 py-2 text-sm font-medium text-white bg-[#1F3864] rounded-lg hover:opacity-90"
-                      >
-                        Reintentar
-                      </button>
-                    </div>
+                  ) : resumenError ? (
+                    <EmptyState
+                      icon={AlertTriangle}
+                      title="No se pudo cargar el resumen"
+                      action={
+                        <Button variant="secondary" onClick={() => refetchResumen()}>
+                          Reintentar
+                        </Button>
+                      }
+                    />
                   ) : (
-                    <div className="space-y-2">
-                      {/* Ventas POS */}
-                      <div className="flex items-center justify-between px-4 py-3 bg-sky-50 rounded-lg">
-                        <div>
-                          <p className="text-sm font-semibold text-sky-700">Ventas POS</p>
-                          <p className="text-xs text-gray-400">
-                            {errorVentas ? (
-                              <button onClick={() => refetchVentas()} className="text-red-500 underline">Error — Reintentar</button>
-                            ) : (
-                              `${ventasResumen?.count ?? 0} transacciones`
-                            )}
-                          </p>
-                        </div>
-                        <p className="text-lg font-bold text-sky-700">
-                          {errorVentas ? '—' : formatCurrency(ventasResumen?.total ?? 0)}
+                    <div className="space-y-3">
+                      <div className="rounded-lg bg-primary-700 px-4 py-3 text-white">
+                        <p className="text-xs uppercase tracking-wide text-primary-100">Efectivo esperado en el cajón</p>
+                        <p className="text-2xl font-bold tabular-nums">{formatCurrency(esperado)}</p>
+                        <p className="text-xs text-primary-100">
+                          {formatCurrency(caja.monto_apertura)} de apertura {totales.efectivo < 0 ? '−' : '+'} {formatCurrency(Math.abs(totales.efectivo))} en efectivo del turno
                         </p>
                       </div>
 
-                      {/* Servicios */}
-                      <div className="flex items-center justify-between px-4 py-3 bg-emerald-50 rounded-lg">
-                        <div>
-                          <p className="text-sm font-semibold text-emerald-700">Servicios / Atenciones</p>
-                          <p className="text-xs text-gray-400">
-                            {errorServicios ? (
-                              <button onClick={() => refetchServicios()} className="text-red-500 underline">Error — Reintentar</button>
-                            ) : (
-                              `${serviciosResumen?.count ?? 0} atenciones`
-                            )}
-                          </p>
+                      {medios.length === 0 ? (
+                        <p className="rounded-lg bg-muted px-4 py-3 text-sm text-fg-muted">Aún no hay cobros en este turno.</p>
+                      ) : (
+                        <div className="overflow-x-auto rounded-lg border border-line">
+                          <table className="w-full text-sm">
+                            <caption className="sr-only">Cobros del turno por medio de pago</caption>
+                            <thead className="bg-muted text-xs uppercase tracking-wide text-fg-muted">
+                              <tr>
+                                <th scope="col" className="px-2 py-2 sm:px-3 text-left font-semibold">Medio</th>
+                                <th scope="col" className="px-2 py-2 sm:px-3 text-right font-semibold">Ingresos</th>
+                                <th scope="col" className="px-2 py-2 sm:px-3 text-right font-semibold">Anuladas</th>
+                                <th scope="col" className="px-2 py-2 sm:px-3 text-right font-semibold">Neto</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-line">
+                              {medios.map((m) => (
+                                <tr key={m.medio}>
+                                  <th scope="row" className="px-2 py-2 sm:px-3 text-left font-medium text-fg">
+                                    {formatMedioPago(m.medio)}
+                                    {m.medio === 'efectivo' && <span className="ml-1.5 hidden rounded sm:inline-block bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200">cajón</span>}
+                                  </th>
+                                  <td className="px-2 py-2 sm:px-3 text-right tabular-nums">{formatCurrency(m.ingresos)}</td>
+                                  <td className="px-2 py-2 sm:px-3 text-right tabular-nums text-fg-muted">{m.egresos > 0 ? `−${formatCurrency(m.egresos)}` : '—'}</td>
+                                  <td className="px-2 py-2 sm:px-3 text-right font-semibold tabular-nums">{formatCurrency(m.neto)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot className="border-t-2 border-line bg-muted font-semibold">
+                              <tr>
+                                <th scope="row" className="px-2 py-2 sm:px-3 text-left">Total</th>
+                                <td className="px-2 py-2 sm:px-3 text-right tabular-nums">{formatCurrency(totales.ingresos)}</td>
+                                <td className="px-2 py-2 sm:px-3 text-right tabular-nums">{totales.egresos > 0 ? `−${formatCurrency(totales.egresos)}` : '—'}</td>
+                                <td className="px-2 py-2 sm:px-3 text-right tabular-nums">{formatCurrency(totales.total)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
                         </div>
-                        <p className="text-lg font-bold text-emerald-700">
-                          {errorServicios ? '—' : formatCurrency(serviciosResumen?.total ?? 0)}
-                        </p>
-                      </div>
+                      )}
 
-                      {/* Total */}
-                      <div className="flex items-center justify-between px-4 py-3 bg-[#1F3864] rounded-lg">
-                        <p className="text-sm font-semibold text-white">Total recaudado</p>
-                        <p className="text-xl font-bold text-white">
-                          {formatCurrency(totalTurno)}
+                      <p className="text-xs text-fg-muted">
+                        Solo el efectivo se cuenta en el cajón. Yape, Plin, tarjeta y transferencia son informativos: compáralos con tu billetera o banco.
+                      </p>
+
+                      {(resumen?.credito_por_cobrar ?? 0) > 0 && (
+                        <p className="flex items-center justify-between rounded-lg bg-amber-50 px-4 py-2.5 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                          <span>A crédito en este turno (por cobrar)</span>
+                          <span className="font-semibold tabular-nums">{formatCurrency(resumen?.credito_por_cobrar ?? 0)}</span>
                         </p>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
 
-                {!showCerrarForm && (
-                  <div className="mt-5">
-                    <button onClick={() => setShowCerrarForm(true)} className="btn-danger w-full">
-                      Cerrar Caja
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Cerrar Caja form */}
-              {showCerrarForm && (
-                <div className="card p-6 shadow-md border-l-4 border-red-400">
-                  <h3 className="text-lg font-bold text-gray-800 mb-4">Confirmar Cierre de Caja</h3>
-                  <div className="space-y-4">
-                    {/* Instrucción de conteo */}
-                    {!resumenLoading && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
-                        <p className="font-semibold text-amber-800 mb-0.5">¿Cuánto contar?</p>
-                        <p className="text-amber-700">
-                          Cuenta <strong>todos</strong> los billetes y monedas del cajón.
-                          Deberías tener aproximadamente{' '}
-                          <strong>{formatCurrency(Number(caja.monto_apertura) + totalTurno)}</strong>
-                          {' '}(S/ {formatCurrency(caja.monto_apertura)} de apertura + S/ {formatCurrency(totalTurno)} de ventas/servicios).
-                        </p>
-                      </div>
-                    )}
-                    <div>
-                      <label className="label-text">Total de efectivo contado en el cajón (S/)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={montoReal}
-                        onChange={(e) => setMontoReal(parseFloat(e.target.value) || 0)}
-                        className="input-field"
-                        placeholder="0.00"
-                      />
-                      <p className="text-xs text-gray-400 mt-1">Ingresa el total físico: apertura + lo recaudado durante el turno</p>
-                    </div>
-                    <div>
-                      <label className="label-text">Observaciones (opcional)</label>
-                      <textarea
-                        value={observaciones}
-                        onChange={(e) => setObservaciones(e.target.value)}
-                        className="input-field resize-none"
-                        rows={3}
-                        placeholder="Notas del cierre..."
-                      />
-                    </div>
-
-                    {/* Resumen cierre */}
-                    {!resumenLoading && (
-                      <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1.5">
-                        <div className="flex justify-between text-gray-500">
-                          <span>Apertura:</span>
-                          <span className="font-medium text-gray-700">{formatCurrency(caja.monto_apertura)}</span>
-                        </div>
-                        <div className="flex justify-between text-gray-500">
-                          <span>Ventas POS:</span>
-                          <span className="font-medium text-gray-700">{formatCurrency(ventasResumen?.total ?? 0)}</span>
-                        </div>
-                        <div className="flex justify-between text-gray-500">
-                          <span>Servicios:</span>
-                          <span className="font-medium text-gray-700">{formatCurrency(serviciosResumen?.total ?? 0)}</span>
-                        </div>
-                        <div className="flex justify-between text-gray-500 border-t border-gray-200 pt-1.5">
-                          <span>Esperado en caja:</span>
-                          <span className="font-semibold text-gray-700">
-                            {formatCurrency(Number(caja.monto_apertura) + totalTurno)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between border-t border-gray-200 pt-1.5">
-                          <span className="font-semibold text-gray-700">Diferencia:</span>
-                          <span className={`font-bold ${(montoReal - (Number(caja.monto_apertura) + totalTurno)) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatCurrency(montoReal - (Number(caja.monto_apertura) + totalTurno))}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex gap-3 pt-1">
-                      <button onClick={handleCerrarCaja} disabled={cerrando} className="btn-danger flex-1 disabled:opacity-60">
-                        {cerrando ? 'Cerrando...' : 'Confirmar Cierre'}
-                      </button>
-                      <button
-                        onClick={() => { setShowCerrarForm(false); setMontoReal(0); setObservaciones('') }}
-                        className="btn-secondary flex-1"
-                        disabled={cerrando}
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
+                <div className="mt-5">
+                  <Button variant="danger" block onClick={() => setShowCerrarForm(true)}>
+                    <Lock className="h-4 w-4" aria-hidden="true" />
+                    Cerrar caja
+                  </Button>
                 </div>
-              )}
+              </section>
             </div>
           )}
         </>
       )}
 
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* TAB: HISTORIAL                                         */}
-      {/* ═══════════════════════════════════════════════════════ */}
       {activeTab === 'historial' && (
-        <div>
-          {loadingHistorial ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />
-              ))}
-            </div>
-          ) : historial.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">
-              <svg className="w-12 h-12 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <p className="text-sm">No hay cajas cerradas aún</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {historial.map((c) => {
-                const ingresos = Number(c.monto_cierre_esperado ?? 0) - Number(c.monto_apertura)
-                const dif = Number(c.diferencia ?? 0)
-                return (
-                  <div key={c.id} className="card p-5 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between gap-4">
-                      {/* Fecha + duración */}
-                      <div className="min-w-0">
-                        <p className="font-bold text-[#1F3864] text-base">{formatDate(c.fecha)}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {formatDateTime(c.opened_at)} → {c.closed_at ? formatDateTime(c.closed_at) : '—'}
-                          <span className="ml-2 font-medium text-gray-500">({duracion(c.opened_at, c.closed_at)})</span>
-                        </p>
-                        {c.observaciones && (
-                          <p className="text-xs text-gray-500 mt-1 italic">"{c.observaciones}"</p>
-                        )}
-                      </div>
-                      {/* Diferencia badge */}
-                      <span className={`shrink-0 text-sm font-bold px-3 py-1 rounded-full ${
-                        dif > 0 ? 'bg-green-100 text-green-700' :
-                        dif < 0 ? 'bg-red-100 text-red-700' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
-                        {dif >= 0 ? '+' : ''}{formatCurrency(dif)}
-                      </span>
-                    </div>
+        <DataTable
+          caption="Cajas cerradas"
+          columns={columnasHistorial}
+          rows={historial}
+          rowKey={(c) => c.id}
+          loading={loadingHistorial}
+          skeletonRows={3}
+          empty={<EmptyState icon={ClipboardList} title="No hay cajas cerradas aún" description="Cuando cierres tu primer turno aparecerá aquí con su diferencia." />}
+        />
+      )}
 
-                    {/* Montos */}
-                    <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                      <div className="bg-gray-50 rounded-lg px-2 py-2">
-                        <p className="text-xs text-gray-400">Apertura</p>
-                        <p className="text-sm font-semibold text-gray-700">{formatCurrency(c.monto_apertura)}</p>
-                      </div>
-                      <div className="bg-sky-50 rounded-lg px-2 py-2">
-                        <p className="text-xs text-sky-500">Ingresos</p>
-                        <p className="text-sm font-semibold text-sky-700">{formatCurrency(ingresos)}</p>
-                      </div>
-                      <div className={`rounded-lg px-2 py-2 ${
-                        dif >= 0 ? 'bg-green-50' : 'bg-red-50'
-                      }`}>
-                        <p className={`text-xs ${dif >= 0 ? 'text-green-500' : 'text-red-400'}`}>Real contado</p>
-                        <p className={`text-sm font-semibold ${dif >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                          {c.monto_cierre_real != null ? formatCurrency(c.monto_cierre_real) : '—'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+      {/* Cierre de caja */}
+      {caja && (
+        <Modal
+          open={showCerrarForm}
+          onOpenChange={(open) => !open && cerrarModalCierre()}
+          title="Confirmar cierre de caja"
+          description="Cuenta el efectivo del cajón antes de confirmar."
+          persistent={cerrando}
+          footer={
+            <>
+              <Button variant="secondary" onClick={cerrarModalCierre} disabled={cerrando}>
+                Cancelar
+              </Button>
+              <Button type="submit" form="cierre-caja-form" variant="danger" loading={cerrando}>
+                {cerrando ? 'Cerrando…' : 'Confirmar cierre'}
+              </Button>
+            </>
+          }
+        >
+          <form
+            id="cierre-caja-form"
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              handleCerrarCaja()
+            }}
+          >
+            {!resumenLoading && (
+              <div role="note" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <p className="mb-0.5 font-semibold">¿Cuánto contar?</p>
+                <p>
+                  Cuenta solo el <strong>efectivo</strong> del cajón (billetes y monedas). Deberías tener <strong>{formatCurrency(esperado)}</strong> (
+                  {formatCurrency(caja.monto_apertura)} de apertura {totales.efectivo < 0 ? '−' : '+'} {formatCurrency(Math.abs(totales.efectivo))} en efectivo del turno).
+                </p>
+              </div>
+            )}
+
+            <Field label="Total de efectivo contado en el cajón (S/)" hint="Ingresa el total físico del cajón, sin contar Yape, Plin, tarjeta ni transferencias">
+              {(p) => (
+                <input
+                  {...p}
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step={0.01}
+                  value={montoReal}
+                  onChange={(e) => setMontoReal(parseFloat(e.target.value) || 0)}
+                  className="input-field text-lg font-semibold"
+                  placeholder="0.00"
+                  autoFocus
+                />
+              )}
+            </Field>
+
+            <Field label="Observaciones (opcional)">
+              {(p) => (
+                <textarea {...p} value={observaciones} onChange={(e) => setObservaciones(e.target.value)} className="input-field resize-none" rows={3} placeholder="Notas del cierre..." />
+              )}
+            </Field>
+
+            {!resumenLoading && (
+              <dl className="space-y-1.5 rounded-lg bg-muted p-4 text-sm">
+                <div className="flex justify-between text-fg-muted">
+                  <dt>Apertura</dt>
+                  <dd className="font-medium text-fg">{formatCurrency(caja.monto_apertura)}</dd>
+                </div>
+                <div className="flex justify-between text-fg-muted">
+                  <dt>Efectivo del turno (neto)</dt>
+                  <dd className="font-medium text-fg">{formatCurrency(totales.efectivo)}</dd>
+                </div>
+                <div className="flex justify-between border-t border-line pt-1.5 text-fg-muted">
+                  <dt>Efectivo esperado</dt>
+                  <dd className="font-semibold text-fg">{formatCurrency(esperado)}</dd>
+                </div>
+                <div className="flex justify-between text-fg-muted">
+                  <dt>Digitales (no se cuentan)</dt>
+                  <dd className="font-medium text-fg">{formatCurrency(totales.digital)}</dd>
+                </div>
+              </dl>
+            )}
+
+            {!resumenLoading && (
+              <div className="flex justify-between rounded-lg bg-muted px-4 py-3 text-sm" role="status" aria-live="polite">
+                <span className="font-semibold text-fg">{diferencia === 0 ? 'Cuadra' : diferencia > 0 ? 'Sobra' : 'Falta'}</span>
+                <span className={cn('font-bold', diferencia >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300')}>
+                  {formatCurrency(Math.abs(diferencia))}
+                </span>
+              </div>
+            )}
+          </form>
+        </Modal>
       )}
     </div>
   )

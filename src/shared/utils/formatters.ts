@@ -78,3 +78,46 @@ export function formatMedioPago(medio: string): string {
   }
   return map[medio] ?? medio
 }
+
+/* ── Fechas en hora de Lima ───────────────────────────────────────────────
+ * `new Date().toISOString().split('T')[0]` devuelve la fecha en UTC: en Lima
+ * (UTC-5) después de las 7 pm ya es "mañana". Estas funciones calculan siempre
+ * con la zona America/Lima, sin depender de la zona del dispositivo.
+ */
+const LIMA_DATE = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Lima',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+/** Fecha (YYYY-MM-DD) de un instante, vista desde Lima. */
+export function fechaLima(d: Date = new Date()): string {
+  return LIMA_DATE.format(d)
+}
+
+/** Hoy en Lima (YYYY-MM-DD). */
+export function hoyLima(): string {
+  return fechaLima()
+}
+
+/** Fecha en Lima de hace `n` días (YYYY-MM-DD). */
+export function diasAtrasLima(n: number): string {
+  const [y, m, d] = hoyLima().split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d - n)).toISOString().slice(0, 10)
+}
+
+/** Primer día del mes actual en Lima (YYYY-MM-01). */
+export function inicioMesLima(): string {
+  return `${hoyLima().slice(0, 7)}-01`
+}
+
+/** Hora (0-23) actual en Lima. */
+export function horaLima(d: Date = new Date()): number {
+  return Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hourCycle: 'h23', timeZone: 'America/Lima' }).format(d))
+}
+
+/** "jueves 2 de octubre" en hora de Lima. */
+export function fechaLargaLima(d: Date = new Date()): string {
+  return new Intl.DateTimeFormat('es-PE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Lima' }).format(d)
+}

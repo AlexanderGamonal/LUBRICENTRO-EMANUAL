@@ -1,14 +1,18 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useProductos, useProductoMutations } from './hooks/useProductos'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 import { formatCurrency } from '@/shared/utils/formatters'
 import { supabase } from '@/shared/lib/supabase'
+import { Package, Plus, SearchX } from 'lucide-react'
+import { ConfirmDialog, DataTable, EmptyState } from '@/shared/ui'
+import type { Column } from '@/shared/ui'
 import type { Database } from '@/shared/types/database'
 
-type StockEstado = Database['public']['Views']['vw_productos_detalle']['Row']['stock_estado']
+type ProductoRow = Database['public']['Views']['vw_productos_detalle']['Row']
+type StockEstado = ProductoRow['stock_estado']
 
 function StockBadge({ estado }: { estado: StockEstado }) {
   if (estado === 'agotado') return <span className="badge-agotado">Agotado</span>
@@ -18,7 +22,7 @@ function StockBadge({ estado }: { estado: StockEstado }) {
 
 function MargenBadge({ precio, costo }: { precio: number; costo: number }) {
   if (!costo || costo === 0) {
-    return <span className="text-xs text-gray-400 italic">Sin costo</span>
+    return <span className="text-xs text-fg-subtle italic">Sin costo</span>
   }
   const margen = precio - costo
   const pct = precio > 0 ? (margen / precio) * 100 : 0
@@ -27,7 +31,7 @@ function MargenBadge({ precio, costo }: { precio: number; costo: number }) {
     pct >= 10 ? 'text-yellow-700 bg-yellow-50' :
                 'text-red-700 bg-red-50'
   return (
-    <div className="text-right">
+    <div className="md:text-right">
       <div className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block ${color}`}>
         {pct.toFixed(1)}%
       </div>
@@ -38,7 +42,9 @@ function MargenBadge({ precio, costo }: { precio: number; costo: number }) {
 
 export function ProductosListPage() {
   const { user } = useAuth()
-  const [search, setSearch] = useState('')
+  const [searchParams] = useSearchParams()
+  // `?q=` llega desde el buscador global (Ctrl+K)
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
   const [categoriaId, setCategoriaId] = useState('')
   const [confirmDesactivar, setConfirmDesactivar] = useState<string | null>(null)
   const debouncedSearch = useDebounce(search, 300)
@@ -66,30 +72,117 @@ export function ProductosListPage() {
   const canEdit =
     user && ['admin', 'superadmin', 'almacen'].includes(user.rol)
 
+  const hasFilters = !!debouncedSearch || !!categoriaId
+
+  const columns: Column<ProductoRow>[] = [
+    {
+      key: 'codigo',
+      header: 'Código',
+      mobile: 'hidden',
+      cell: (p) => <span className="font-mono text-xs text-fg">{p.codigo_interno}</span>,
+    },
+    {
+      key: 'nombre',
+      header: 'Nombre',
+      mobile: 'title',
+      cell: (p) => (
+        <div>
+          <div className="font-medium text-fg">{p.nombre}</div>
+          <div className="text-xs text-fg-subtle">
+            <span className="font-mono md:hidden">{p.codigo_interno}</span>
+            {p.marca && <span className="md:block"><span className="md:hidden"> · </span>{p.marca}</span>}
+          </div>
+        </div>
+      ),
+    },
+    { key: 'categoria', header: 'Categoría', hideBelowLg: true, cell: (p) => p.categoria_nombre ?? '—' },
+    {
+      key: 'ubicacion',
+      header: 'Ubicación',
+      cell: (p) =>
+        p.ubicacion_codigo ? (
+          <span className="rounded bg-blue-50 px-2 py-0.5 font-mono text-xs text-primary-700">{p.ubicacion_codigo}</span>
+        ) : (
+          '—'
+        ),
+    },
+    {
+      key: 'stock',
+      header: 'Stock',
+      cell: (p) => (
+        <div>
+          <StockBadge estado={p.stock_estado} />
+          <div className="mt-0.5 text-xs text-fg-subtle">
+            {p.stock_actual} / mín {p.stock_minimo}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'precio',
+      header: 'P. Venta',
+      cell: (p) => <span className="font-medium text-fg">{formatCurrency(p.precio_venta)}</span>,
+    },
+    {
+      key: 'margen',
+      header: 'Margen',
+      align: 'right',
+      hideBelowLg: true,
+      cell: (p) => <MargenBadge precio={p.precio_venta} costo={p.costo} />,
+    },
+    {
+      key: 'acciones',
+      header: 'Acciones',
+      mobile: 'actions',
+      srOnlyHeader: !canEdit,
+      cell: (p) =>
+        canEdit ? (
+          <div className="flex gap-3">
+            <Link
+              to={`/productos/${p.id}/editar`}
+              className="inline-flex min-h-touch items-center text-sm font-medium text-primary-700 hover:text-primary-900 md:min-h-0 md:text-xs"
+            >
+              Editar
+            </Link>
+            <button
+              type="button"
+              onClick={() => setConfirmDesactivar(p.id)}
+              className="inline-flex min-h-touch items-center text-sm font-medium text-red-600 hover:text-red-800 md:min-h-0 md:text-xs"
+            >
+              Desactivar
+            </button>
+          </div>
+        ) : null,
+    },
+  ]
+
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Productos</h1>
+    <div className="mx-auto max-w-7xl p-4 sm:p-6">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-fg">Productos</h1>
         {canEdit && (
-          <Link to="/productos/nuevo" className="btn-primary">
-            + Nuevo Producto
+          <Link to="/productos/nuevo" className="btn-primary inline-flex items-center gap-2">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Nuevo producto
           </Link>
         )}
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
         <input
-          type="text"
+          type="search"
+          aria-label="Buscar productos"
           placeholder="Buscar por nombre, código o marca..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="input-field max-w-xs"
+          className="input-field sm:max-w-xs"
         />
         <select
+          aria-label="Filtrar por categoría"
           value={categoriaId}
           onChange={(e) => setCategoriaId(e.target.value)}
-          className="input-field max-w-xs"
+          className="input-field sm:max-w-xs"
         >
           <option value="">Todas las categorías</option>
           {categorias?.map((c) => (
@@ -100,141 +193,61 @@ export function ProductosListPage() {
         </select>
       </div>
 
-      {/* Tabla */}
-      <div className="card p-0 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200 text-left text-gray-600">
-                <th className="px-4 py-3 font-medium">Código</th>
-                <th className="px-4 py-3 font-medium">Nombre</th>
-                <th className="px-4 py-3 font-medium">Categoría</th>
-                <th className="px-4 py-3 font-medium">Ubicación</th>
-                <th className="px-4 py-3 font-medium">Stock</th>
-                <th className="px-4 py-3 font-medium">P. Venta</th>
-                <th className="px-4 py-3 font-medium text-right">Margen</th>
-                <th className="px-4 py-3 font-medium">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {isLoading &&
-                [1, 2, 3].map((n) => (
-                  <tr key={n}>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
-                      <td key={c} className="px-4 py-3">
-                        <div className="h-4 bg-gray-200 rounded animate-pulse" />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              {!isLoading && (!productos || productos.length === 0) && (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="px-4 py-12 text-center text-gray-400"
-                  >
-                    No se encontraron productos
-                  </td>
-                </tr>
-              )}
-              {productos?.map((p) => (
-                <tr
-                  key={p.id}
-                  className="hover:bg-gray-50 transition-colors"
+      <DataTable
+        caption="Listado de productos"
+        columns={columns}
+        rows={productos}
+        rowKey={(p) => p.id}
+        loading={isLoading}
+        empty={
+          hasFilters ? (
+            <EmptyState
+              icon={SearchX}
+              title="Ningún producto coincide con la búsqueda"
+              description="Prueba con otro nombre, código o marca, o quita el filtro de categoría."
+              action={
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setSearch('')
+                    setCategoriaId('')
+                  }}
                 >
-                  <td className="px-4 py-3 font-mono text-xs text-gray-700">
-                    {p.codigo_interno}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900">{p.nombre}</div>
-                    {p.marca && (
-                      <div className="text-xs text-gray-400">{p.marca}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {p.categoria_nombre ?? '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    {p.ubicacion_codigo ? (
-                      <span className="font-mono text-xs bg-blue-50 text-primary-700 px-2 py-0.5 rounded">
-                        {p.ubicacion_codigo}
-                      </span>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div>
-                      <StockBadge estado={p.stock_estado} />
-                    </div>
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {p.stock_actual} / mín {p.stock_minimo}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-medium text-gray-900">
-                    {formatCurrency(p.precio_venta)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <MargenBadge precio={p.precio_venta} costo={p.costo} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      {canEdit && (
-                        <>
-                          <Link
-                            to={`/productos/${p.id}/editar`}
-                            className="text-xs text-primary-700 hover:text-primary-900 font-medium"
-                          >
-                            Editar
-                          </Link>
-                          <button
-                            onClick={() => setConfirmDesactivar(p.id)}
-                            className="text-xs text-red-600 hover:text-red-800 font-medium"
-                          >
-                            Desactivar
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  Limpiar filtros
+                </button>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={Package}
+              title="Aún no hay productos"
+              description={canEdit ? 'Crea el primero o impórtalos desde un Excel.' : 'Cuando el almacén los registre, aparecerán aquí.'}
+              action={
+                canEdit ? (
+                  <Link to="/productos/nuevo" className="btn-primary inline-flex items-center gap-2">
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Nuevo producto
+                  </Link>
+                ) : undefined
+              }
+            />
+          )
+        }
+      />
 
-      {/* Modal de confirmación */}
-      {confirmDesactivar && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
-            <h3 className="font-semibold text-gray-900 mb-2">
-              ¿Desactivar producto?
-            </h3>
-            <p className="text-gray-500 text-sm mb-6">
-              El producto no será eliminado, solo quedará inactivo.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmDesactivar(null)}
-                className="btn-secondary flex-1"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => {
-                  desactivarProducto.mutate(confirmDesactivar)
-                  setConfirmDesactivar(null)
-                }}
-                className="btn-danger flex-1"
-                disabled={desactivarProducto.isPending}
-              >
-                Desactivar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!confirmDesactivar}
+        onOpenChange={(open) => !open && setConfirmDesactivar(null)}
+        title="¿Desactivar producto?"
+        description="El producto no será eliminado, solo quedará inactivo."
+        confirmLabel="Desactivar"
+        loading={desactivarProducto.isPending}
+        onConfirm={() => {
+          if (confirmDesactivar) desactivarProducto.mutate(confirmDesactivar)
+          setConfirmDesactivar(null)
+        }}
+      />
     </div>
   )
 }

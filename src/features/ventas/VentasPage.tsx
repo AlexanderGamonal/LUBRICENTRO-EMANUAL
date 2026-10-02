@@ -1,10 +1,28 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import {
+  AlertTriangle,
+  Banknote,
+  ChevronRight,
+  ClipboardList,
+  CreditCard,
+  Landmark,
+  Percent,
+  Receipt,
+  RefreshCw,
+  Shuffle,
+  ShoppingBag,
+  Smartphone,
+  Wallet,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { formatCurrency, formatDateTime } from '@/shared/utils/formatters'
 import { cn } from '@/shared/utils/cn'
+import { Button, DataTable, EmptyState, Field, Modal, SegmentedControl, StatCard } from '@/shared/ui'
+import type { Column } from '@/shared/ui'
 import type { MedioPago, EstadoVenta } from '@/shared/types/database'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -28,18 +46,25 @@ interface VentaDetalle {
   total_items: number
 }
 
-interface VentaItem {
+interface VentaItemConNombre {
   id: string
   venta_id: string
   producto_id: string | null
   cantidad: number
   precio_unitario: number
   subtotal: number
-}
-
-interface VentaItemConNombre extends VentaItem {
   producto_nombre: string | null
   producto_codigo: string | null
+}
+
+interface VentaItemRaw {
+  id: string
+  venta_id: string
+  producto_id: string | null
+  cantidad: number
+  precio_unitario: number
+  subtotal: number
+  productos: { nombre: string; codigo_interno: string } | null
 }
 
 type Periodo = 'hoy' | 'ayer' | 'semana' | 'mes'
@@ -49,8 +74,6 @@ type FiltroEstado = 'todas' | 'emitida' | 'anulada'
 
 function calcularFechas(periodo: Periodo): { desde: string; hasta: string } {
   const now = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-
   const toISO = (d: Date) => d.toISOString()
 
   if (periodo === 'hoy') {
@@ -71,47 +94,36 @@ function calcularFechas(periodo: Periodo): { desde: string; hasta: string } {
     return { desde: toISO(monday), hasta: toISO(now) }
   }
 
-  // mes
   const desde = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0)
   return { desde: toISO(desde), hasta: toISO(now) }
-
-  void pad // avoid unused warning
 }
 
 // ─── Medio pago config ────────────────────────────────────────────────────────
 
-const MEDIO_PAGO_CONFIG: Record<MedioPago, { label: string; emoji: string; color: string }> = {
-  efectivo:      { label: 'Efectivo',      emoji: '💵', color: 'bg-green-100 text-green-700' },
-  yape:          { label: 'Yape',          emoji: '🟣', color: 'bg-purple-100 text-purple-700' },
-  plin:          { label: 'Plin',          emoji: '🔵', color: 'bg-blue-100 text-blue-700' },
-  tarjeta:       { label: 'Tarjeta',       emoji: '💳', color: 'bg-indigo-100 text-indigo-700' },
-  transferencia: { label: 'Transferencia', emoji: '🏦', color: 'bg-sky-100 text-sky-700' },
-  credito:       { label: 'Crédito',       emoji: '📋', color: 'bg-orange-100 text-orange-700' },
-  mixto:         { label: 'Mixto',         emoji: '🔀', color: 'bg-gray-100 text-gray-700' },
+const MEDIO_PAGO_CONFIG: Record<MedioPago, { label: string; icon: LucideIcon; color: string }> = {
+  efectivo: { label: 'Efectivo', icon: Banknote, color: 'bg-green-100 text-green-700' },
+  yape: { label: 'Yape', icon: Smartphone, color: 'bg-purple-100 text-purple-700' },
+  plin: { label: 'Plin', icon: Smartphone, color: 'bg-blue-100 text-blue-700' },
+  tarjeta: { label: 'Tarjeta', icon: CreditCard, color: 'bg-indigo-100 text-indigo-700' },
+  transferencia: { label: 'Transferencia', icon: Landmark, color: 'bg-sky-100 text-sky-700' },
+  credito: { label: 'Crédito', icon: ClipboardList, color: 'bg-orange-100 text-orange-700' },
+  mixto: { label: 'Mixto', icon: Shuffle, color: 'bg-gray-100 text-gray-700' },
 }
 
-// ─── Expanded row items ───────────────────────────────────────────────────────
+// ─── Detalle expandido de una venta ───────────────────────────────────────────
 
-function VentaItemsRow({ ventaId }: { ventaId: string }) {
+function VentaItemsPanel({ ventaId }: { ventaId: string }) {
   const { data: items, isLoading } = useQuery<VentaItemConNombre[]>({
     queryKey: ['venta-items', ventaId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('venta_items')
-        .select(`
-          id,
-          venta_id,
-          producto_id,
-          cantidad,
-          precio_unitario,
-          subtotal,
-          productos(nombre, codigo_interno)
-        `)
+        .select('id, venta_id, producto_id, cantidad, precio_unitario, subtotal, productos(nombre, codigo_interno)')
         .eq('venta_id', ventaId)
 
       if (error) throw error
 
-      return (data ?? []).map((item: any) => ({
+      return ((data ?? []) as unknown as VentaItemRaw[]).map((item) => ({
         id: item.id,
         venta_id: item.venta_id,
         producto_id: item.producto_id,
@@ -127,60 +139,33 @@ function VentaItemsRow({ ventaId }: { ventaId: string }) {
 
   if (isLoading) {
     return (
-      <td colSpan={8} className="px-6 py-3 bg-gray-50">
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <svg className="animate-spin w-4 h-4 text-[#1F3864]" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
-          Cargando items...
-        </div>
-      </td>
+      <p role="status" className="text-sm text-fg-muted">
+        Cargando productos…
+      </p>
     )
   }
 
+  if (!items || items.length === 0) {
+    return <p className="text-sm text-fg-subtle">Sin productos registrados.</p>
+  }
+
   return (
-    <td colSpan={8} className="px-0 bg-slate-50 border-t border-slate-100">
-      <div className="px-12 py-3">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-xs text-gray-500 uppercase tracking-wide border-b border-gray-200">
-              <th className="text-left pb-2 font-semibold">Producto</th>
-              <th className="text-left pb-2 font-semibold">Código</th>
-              <th className="text-right pb-2 font-semibold">Cant.</th>
-              <th className="text-right pb-2 font-semibold">Precio unit.</th>
-              <th className="text-right pb-2 font-semibold">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(items ?? []).map((item) => (
-              <tr key={item.id} className="border-b border-gray-100 last:border-0">
-                <td className="py-1.5 text-gray-800 font-medium">
-                  {item.producto_nombre ?? '(Producto eliminado)'}
-                </td>
-                <td className="py-1.5 text-gray-500 font-mono text-xs">
-                  {item.producto_codigo ?? '—'}
-                </td>
-                <td className="py-1.5 text-right text-gray-700">{item.cantidad}</td>
-                <td className="py-1.5 text-right text-gray-700">
-                  {formatCurrency(item.precio_unitario)}
-                </td>
-                <td className="py-1.5 text-right font-semibold text-[#1F3864]">
-                  {formatCurrency(item.subtotal)}
-                </td>
-              </tr>
-            ))}
-            {(items ?? []).length === 0 && (
-              <tr>
-                <td colSpan={5} className="py-3 text-center text-gray-400 text-sm">
-                  Sin items
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </td>
+    <ul aria-label="Productos de la venta" className="divide-y divide-line text-sm">
+      {items.map((item) => (
+        <li key={item.id} className="flex items-start justify-between gap-4 py-2">
+          <div className="min-w-0">
+            <p className="font-medium text-fg">{item.producto_nombre ?? '(Producto eliminado)'}</p>
+            <p className="font-mono text-xs text-fg-subtle">{item.producto_codigo ?? '—'}</p>
+          </div>
+          <div className="flex-shrink-0 text-right">
+            <p className="font-semibold text-primary-700">{formatCurrency(item.subtotal)}</p>
+            <p className="text-xs text-fg-muted">
+              {item.cantidad} × {formatCurrency(item.precio_unitario)}
+            </p>
+          </div>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -195,10 +180,12 @@ interface AnularModalProps {
 function AnularModal({ venta, onClose, onSuccess }: AnularModalProps) {
   const [motivo, setMotivo] = useState('')
   const [loading, setLoading] = useState(false)
-  const motivoError = motivo.trim().length > 0 && motivo.trim().length < 10
+  const largo = motivo.trim().length
+  const motivoError = largo > 0 && largo < 10 ? `Mínimo 10 caracteres (${largo}/10)` : undefined
 
-  async function handleAnular() {
-    if (motivo.trim().length < 10) {
+  async function handleAnular(e: React.FormEvent) {
+    e.preventDefault()
+    if (largo < 10) {
       toast.error('El motivo debe tener al menos 10 caracteres')
       return
     }
@@ -211,84 +198,52 @@ function AnularModal({ venta, onClose, onSuccess }: AnularModalProps) {
       if (error) throw error
       toast.success('Venta anulada correctamente')
       onSuccess()
-    } catch (err: any) {
-      toast.error(err?.message ?? 'Error al anular la venta')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al anular la venta')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">Anular Venta</h2>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Venta #{venta.id.slice(0, 8).toUpperCase()} — {formatCurrency(venta.total)}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Cerrar"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-          <p className="text-sm text-red-700 font-medium">
-            Esta acción no se puede deshacer. El stock de los productos será restaurado.
-          </p>
-        </div>
-
-        <div className="mb-5">
-          <label className="label-text">
-            Motivo de anulación <span className="text-red-500">*</span>
-          </label>
-          <textarea
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-            className={cn('input-field resize-none', motivoError && 'border-red-400 focus:ring-red-300')}
-            rows={3}
-            placeholder="Describe el motivo de la anulación (mín. 10 caracteres)..."
-            autoFocus
-          />
-          {motivoError && (
-            <p className="error-text mt-1">Mínimo 10 caracteres ({motivo.trim().length}/10)</p>
-          )}
-          {!motivoError && motivo.trim().length >= 10 && (
-            <p className="text-xs text-green-600 mt-1">{motivo.trim().length} caracteres</p>
-          )}
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={handleAnular}
-            disabled={loading || motivo.trim().length < 10}
-            className="btn-danger flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                Anulando...
-              </span>
-            ) : (
-              'Confirmar Anulación'
-            )}
-          </button>
-          <button onClick={onClose} disabled={loading} className="btn-secondary flex-1">
+    <Modal
+      open
+      onOpenChange={(open) => !open && !loading && onClose()}
+      title="Anular venta"
+      description={`Venta #${venta.id.slice(0, 8).toUpperCase()} — ${formatCurrency(venta.total)}`}
+      persistent={loading}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
             Cancelar
-          </button>
+          </Button>
+          <Button type="submit" form="anular-venta-form" variant="danger" loading={loading} disabled={largo < 10}>
+            {loading ? 'Anulando…' : 'Confirmar anulación'}
+          </Button>
+        </>
+      }
+    >
+      <form id="anular-venta-form" onSubmit={handleAnular} className="space-y-4">
+        <div role="note" className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          Esta acción no se puede deshacer. El stock de los productos será restaurado.
         </div>
-      </div>
-    </div>
+
+        <Field label="Motivo de anulación" required error={motivoError} hint={largo >= 10 ? `${largo} caracteres` : undefined}>
+          {(p) => (
+            <textarea
+              {...p}
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              className="input-field resize-none"
+              rows={3}
+              placeholder="Describe el motivo de la anulación (mín. 10 caracteres)..."
+              autoFocus
+            />
+          )}
+        </Field>
+      </form>
+    </Modal>
   )
 }
 
@@ -305,7 +260,7 @@ export default function VentasPage() {
 
   const { desde, hasta } = calcularFechas(periodo)
 
-  const { data: ventas = [], isLoading, error } = useQuery<VentaDetalle[]>({
+  const { data: ventas = [], isLoading, error, refetch, isFetching } = useQuery<VentaDetalle[]>({
     queryKey: ['ventas', user?.sucursal_id, periodo],
     queryFn: async () => {
       if (!user?.sucursal_id) return []
@@ -323,15 +278,13 @@ export default function VentasPage() {
     refetchInterval: 30_000,
   })
 
-  const ventasFiltradas = ventas.filter((v) => {
-    if (filtroEstado === 'todas') return true
-    return v.estado === filtroEstado
-  })
+  const ventasFiltradas = ventas.filter((v) => filtroEstado === 'todas' || v.estado === filtroEstado)
 
+  const emitidas = ventas.filter((v) => v.estado === 'emitida')
   const resumen = {
-    totalVendido: ventas.filter((v) => v.estado === 'emitida').reduce((s, v) => s + v.total, 0),
-    cantidadVentas: ventas.filter((v) => v.estado === 'emitida').length,
-    descuentosDados: ventas.filter((v) => v.estado === 'emitida').reduce((s, v) => s + v.descuento, 0),
+    totalVendido: emitidas.reduce((s, v) => s + v.total, 0),
+    cantidadVentas: emitidas.length,
+    descuentosDados: emitidas.reduce((s, v) => s + v.descuento, 0),
   }
 
   function toggleRow(id: string) {
@@ -345,300 +298,198 @@ export default function VentasPage() {
 
   const canAnular = user?.rol === 'admin' || user?.rol === 'superadmin'
 
-  const periodOptions: { key: Periodo; label: string }[] = [
-    { key: 'hoy', label: 'Hoy' },
-    { key: 'ayer', label: 'Ayer' },
-    { key: 'semana', label: 'Esta semana' },
-    { key: 'mes', label: 'Este mes' },
+  const periodOptions: { value: Periodo; label: string }[] = [
+    { value: 'hoy', label: 'Hoy' },
+    { value: 'ayer', label: 'Ayer' },
+    { value: 'semana', label: 'Semana' },
+    { value: 'mes', label: 'Mes' },
   ]
 
-  const estadoOptions: { key: FiltroEstado; label: string }[] = [
-    { key: 'todas', label: 'Todas' },
-    { key: 'emitida', label: 'Emitidas' },
-    { key: 'anulada', label: 'Anuladas' },
+  const estadoOptions: { value: FiltroEstado; label: string }[] = [
+    { value: 'todas', label: 'Todas' },
+    { value: 'emitida', label: 'Emitidas' },
+    { value: 'anulada', label: 'Anuladas' },
+  ]
+
+  const columns: Column<VentaDetalle>[] = [
+    {
+      key: 'expand',
+      header: 'Detalle',
+      srOnlyHeader: true,
+      mobile: 'hidden',
+      className: 'w-10',
+      cell: (v) => (
+        <button
+          type="button"
+          onClick={() => toggleRow(v.id)}
+          aria-expanded={expandedRows.has(v.id)}
+          aria-label={`${expandedRows.has(v.id) ? 'Ocultar' : 'Ver'} productos de la venta ${v.id.slice(0, 8).toUpperCase()}`}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-subtle transition-colors hover:bg-muted hover:text-primary-700"
+        >
+          <ChevronRight className={cn('h-4 w-4 transition-transform', expandedRows.has(v.id) && 'rotate-90')} aria-hidden="true" />
+        </button>
+      ),
+    },
+    {
+      key: 'hora',
+      header: 'Fecha y hora',
+      mobile: 'subtitle',
+      cell: (v) => <span className="whitespace-nowrap">{formatDateTime(v.created_at)}</span>,
+    },
+    {
+      key: 'cliente',
+      header: 'Cliente',
+      mobile: 'title',
+      cell: (v) =>
+        v.cliente_nombre ? (
+          <div>
+            <p className="max-w-[160px] truncate font-medium text-fg md:max-w-[200px] xl:max-w-[260px]">{v.cliente_nombre}</p>
+            {v.cliente_telefono && <p className="text-xs font-normal text-fg-subtle">{v.cliente_telefono}</p>}
+          </div>
+        ) : (
+          <span className="text-xs text-fg-subtle md:text-xs">Sin cliente</span>
+        ),
+    },
+    { key: 'vendedor', header: 'Vendedor', hideBelowLg: true, cell: (v) => <span className="block max-w-[120px] truncate">{v.usuario_nombre}</span> },
+    {
+      key: 'items',
+      header: 'Items',
+      align: 'center',
+      cell: (v) => (
+        <span className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary-700/10 px-1.5 text-xs font-bold text-primary-700">
+          {v.total_items}
+        </span>
+      ),
+    },
+    {
+      key: 'medio',
+      header: 'Medio de pago',
+      cell: (v) => {
+        const cfg = MEDIO_PAGO_CONFIG[v.medio_pago]
+        const Icon = cfg.icon
+        return (
+          <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium', cfg.color)}>
+            <Icon className="h-3 w-3" aria-hidden="true" />
+            {cfg.label}
+          </span>
+        )
+      },
+    },
+    {
+      key: 'total',
+      header: 'Total',
+      align: 'right',
+      cell: (v) => {
+        const anulada = v.estado === 'anulada'
+        return (
+          <div className="font-semibold">
+            <span className={cn(anulada ? 'text-fg-subtle line-through' : 'text-fg')}>{formatCurrency(v.total)}</span>
+            {v.descuento > 0 && !anulada && (
+              <p className="text-xs font-normal text-orange-700 dark:text-orange-300">-{formatCurrency(v.descuento)} dto.</p>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      key: 'estado',
+      header: 'Estado',
+      align: 'center',
+      cell: (v) =>
+        v.estado === 'anulada' ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-gray-200 px-2 py-0.5 text-xs font-semibold text-gray-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-gray-500" aria-hidden="true" />
+            Anulada
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-600" aria-hidden="true" />
+            Emitida
+          </span>
+        ),
+    },
+    {
+      key: 'acciones',
+      header: 'Acciones',
+      align: 'center',
+      mobile: 'actions',
+      srOnlyHeader: !canAnular,
+      cell: (v) => (
+        <>
+          <Button variant="secondary" size="sm" className="md:hidden" onClick={() => toggleRow(v.id)} aria-expanded={expandedRows.has(v.id)}>
+            <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
+            {expandedRows.has(v.id) ? 'Ocultar productos' : 'Ver productos'}
+          </Button>
+          {v.estado !== 'anulada' && canAnular ? (
+            <button
+              type="button"
+              onClick={() => setVentaAAnular(v)}
+              className="min-h-touch rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 md:min-h-0"
+            >
+              Anular
+            </button>
+          ) : (
+            <span className="hidden text-xs text-fg-subtle md:inline">—</span>
+          )}
+        </>
+      ),
+    },
   ]
 
   return (
-    <div className="animate-fade-in p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="animate-fade-in space-y-5 p-4 sm:p-6">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1F3864]">Ventas</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Historial y gestión de ventas</p>
+          <h1 className="text-2xl font-bold text-primary-700">Historial de ventas</h1>
+          <p className="mt-0.5 text-sm text-fg-muted">Historial y gestión de ventas</p>
         </div>
-        <button
-          onClick={() => queryClient.invalidateQueries({ queryKey: ['ventas', user?.sucursal_id, periodo] })}
-          className="btn-secondary flex items-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Actualizar
-        </button>
+        <Button variant="secondary" onClick={() => refetch()} loading={isFetching && !isLoading} aria-label="Actualizar ventas">
+          {!(isFetching && !isLoading) && <RefreshCw className="h-4 w-4" aria-hidden="true" />}
+          <span className="hidden sm:inline">Actualizar</span>
+        </Button>
       </div>
 
-      {/* Filters */}
-      <div className="card p-4 flex flex-wrap items-center gap-4">
-        {/* Period selector */}
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-          {periodOptions.map((opt) => (
-            <button
-              key={opt.key}
-              onClick={() => setPeriodo(opt.key)}
-              className={cn(
-                'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
-                periodo === opt.key
-                  ? 'bg-white text-[#1F3864] shadow-sm font-semibold'
-                  : 'text-gray-600 hover:text-gray-800'
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Estado filter */}
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-          {estadoOptions.map((opt) => (
-            <button
-              key={opt.key}
-              onClick={() => setFiltroEstado(opt.key)}
-              className={cn(
-                'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
-                filtroEstado === opt.key
-                  ? 'bg-white text-[#1F3864] shadow-sm font-semibold'
-                  : 'text-gray-600 hover:text-gray-800'
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
-        <span className="text-xs text-gray-400 ml-auto">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <SegmentedControl label="Período" options={periodOptions} value={periodo} onChange={setPeriodo} />
+        <SegmentedControl label="Estado de la venta" options={estadoOptions} value={filtroEstado} onChange={setFiltroEstado} />
+        <span className="text-xs text-fg-subtle lg:ml-auto">
           {ventasFiltradas.length} resultado{ventasFiltradas.length !== 1 ? 's' : ''}
         </span>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="card p-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-            Total vendido
-          </p>
-          <p className="text-2xl font-bold text-[#1F3864]">
-            {formatCurrency(resumen.totalVendido)}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">Solo ventas emitidas</p>
-        </div>
-        <div className="card p-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-            Cantidad de ventas
-          </p>
-          <p className="text-2xl font-bold text-[#1F3864]">{resumen.cantidadVentas}</p>
-          <p className="text-xs text-gray-400 mt-1">Ventas emitidas en el período</p>
-        </div>
-        <div className="card p-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-            Descuentos dados
-          </p>
-          <p className="text-2xl font-bold text-orange-600">
-            {formatCurrency(resumen.descuentosDados)}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">Total en descuentos del período</p>
-        </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+        <StatCard label="Total vendido" value={formatCurrency(resumen.totalVendido)} hint="Solo ventas emitidas" icon={Wallet} tone="success" loading={isLoading} />
+        <StatCard label="Cantidad de ventas" value={resumen.cantidadVentas} hint="Ventas emitidas en el período" icon={Receipt} tone="accent" loading={isLoading} />
+        <StatCard label="Descuentos dados" value={formatCurrency(resumen.descuentosDados)} hint="Total en descuentos del período" icon={Percent} tone="warning" loading={isLoading} />
       </div>
 
-      {/* Table */}
-      <div className="card overflow-hidden">
-        {isLoading ? (
-          <div className="p-8 space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
-            ))}
-          </div>
-        ) : error ? (
-          <div className="p-8 text-center">
-            <p className="text-red-600 font-medium">Error al cargar las ventas</p>
-            <p className="text-sm text-gray-500 mt-1">Intenta actualizar la página</p>
-          </div>
-        ) : ventasFiltradas.length === 0 ? (
-          <div className="p-12 text-center">
-            <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            <p className="text-gray-500 font-medium">No hay ventas en este período</p>
-            <p className="text-sm text-gray-400 mt-1">Prueba cambiando los filtros</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="w-8 px-4 py-3" />
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Hora
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Cliente
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Vendedor
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Items
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Medio Pago
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Total
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Estado
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {ventasFiltradas.map((venta) => {
-                  const isExpanded = expandedRows.has(venta.id)
-                  const medioCfg = MEDIO_PAGO_CONFIG[venta.medio_pago]
-                  const isAnulada = venta.estado === 'anulada'
+      {error ? (
+        <div className="rounded-xl border border-line bg-card">
+          <EmptyState
+            icon={AlertTriangle}
+            title="Error al cargar las ventas"
+            description="Revisa tu conexión e inténtalo de nuevo."
+            action={
+              <Button onClick={() => refetch()} variant="secondary">
+                Reintentar
+              </Button>
+            }
+          />
+        </div>
+      ) : (
+        <DataTable
+          caption="Ventas del período"
+          columns={columns}
+          rows={ventasFiltradas}
+          rowKey={(v) => v.id}
+          loading={isLoading}
+          skeletonRows={5}
+          rowClassName={(v) => (v.estado === 'anulada' ? 'bg-muted/60' : undefined)}
+          expand={{ isExpanded: (v) => expandedRows.has(v.id), render: (v) => <VentaItemsPanel ventaId={v.id} /> }}
+          empty={<EmptyState icon={Receipt} title="No hay ventas en este período" description="Prueba cambiando los filtros." />}
+        />
+      )}
 
-                  return (
-                    <>
-                      <tr
-                        key={venta.id}
-                        className={cn(
-                          'hover:bg-gray-50 transition-colors',
-                          isAnulada && 'opacity-60 bg-gray-50'
-                        )}
-                      >
-                        {/* Expand chevron */}
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => toggleRow(venta.id)}
-                            className="text-gray-400 hover:text-[#1F3864] transition-colors"
-                            aria-label={isExpanded ? 'Colapsar' : 'Expandir'}
-                          >
-                            <svg
-                              className={cn('w-4 h-4 transition-transform', isExpanded && 'rotate-90')}
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </button>
-                        </td>
-
-                        {/* Hora */}
-                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                          {formatDateTime(venta.created_at)}
-                        </td>
-
-                        {/* Cliente */}
-                        <td className="px-4 py-3">
-                          {venta.cliente_nombre ? (
-                            <div>
-                              <p className="font-medium text-gray-800 truncate max-w-[140px]">
-                                {venta.cliente_nombre}
-                              </p>
-                              {venta.cliente_telefono && (
-                                <p className="text-xs text-gray-400">{venta.cliente_telefono}</p>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-gray-400 text-xs">Sin cliente</span>
-                          )}
-                        </td>
-
-                        {/* Vendedor */}
-                        <td className="px-4 py-3 text-gray-700 truncate max-w-[120px]">
-                          {venta.usuario_nombre}
-                        </td>
-
-                        {/* Items */}
-                        <td className="px-4 py-3 text-center">
-                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#1F3864]/10 text-[#1F3864] text-xs font-bold">
-                            {venta.total_items}
-                          </span>
-                        </td>
-
-                        {/* Medio pago */}
-                        <td className="px-4 py-3">
-                          <span
-                            className={cn(
-                              'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium',
-                              medioCfg.color
-                            )}
-                          >
-                            <span>{medioCfg.emoji}</span>
-                            {medioCfg.label}
-                          </span>
-                        </td>
-
-                        {/* Total */}
-                        <td className="px-4 py-3 text-right font-semibold">
-                          <span className={cn(isAnulada && 'line-through text-gray-400')}>
-                            {formatCurrency(venta.total)}
-                          </span>
-                          {venta.descuento > 0 && !isAnulada && (
-                            <p className="text-xs text-orange-500 font-normal">
-                              -{formatCurrency(venta.descuento)} dto.
-                            </p>
-                          )}
-                        </td>
-
-                        {/* Estado badge */}
-                        <td className="px-4 py-3 text-center">
-                          {isAnulada ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-200 text-gray-600">
-                              <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                              Anulada
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-                              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                              Emitida
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Acciones */}
-                        <td className="px-4 py-3 text-center">
-                          {!isAnulada && canAnular ? (
-                            <button
-                              onClick={() => setVentaAAnular(venta)}
-                              className="px-3 py-1 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                            >
-                              Anular
-                            </button>
-                          ) : (
-                            <span className="text-gray-300 text-xs">—</span>
-                          )}
-                        </td>
-                      </tr>
-
-                      {/* Expanded items row */}
-                      {isExpanded && (
-                        <tr key={`${venta.id}-items`} className="bg-slate-50">
-                          <VentaItemsRow ventaId={venta.id} />
-                        </tr>
-                      )}
-                    </>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Anular modal */}
       {ventaAAnular && (
         <AnularModal
           venta={ventaAAnular}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { SearchX } from 'lucide-react'
 import { formatCurrency } from '@/shared/utils/formatters'
 import type { Database } from '@/shared/types/database'
 import jsQR from 'jsqr'
@@ -253,7 +254,7 @@ export function BusquedaRapidaPage() {
       {/* Sin resultados */}
       {estado === 'sin_resultados' && (
         <div className="card text-center py-12">
-          <div className="text-4xl mb-3">🔍</div>
+          <SearchX className="mx-auto mb-3 h-10 w-10 text-fg-subtle" aria-hidden="true" />
           <p className="text-gray-700 font-medium">
             No se encontró ningún producto
           </p>

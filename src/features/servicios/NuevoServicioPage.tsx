@@ -5,12 +5,17 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { CalendarDays, Phone, Trash2, User } from 'lucide-react'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useDebounce } from '@/shared/hooks/useDebounce'
-import { formatCurrency, formatDate } from '@/shared/utils/formatters'
-import { cn } from '@/shared/utils/cn'
-import type { Database } from '@/shared/types/database'
+import { diasAtrasLima, fechaLargaLima, formatCurrency, formatDate, hoyLima } from '@/shared/utils/formatters'
+import { Button, Field, FormActions, PageHeader, RadioCardGroup, SearchCombobox } from '@/shared/ui'
+import { MEDIO_PAGO_OPTIONS } from '@/features/ventas/pos/constants'
+import { PagoMixtoEditor } from '@/features/ventas/pos/PagoMixtoEditor'
+import { aDetallesRpc, errorPagoMixto, pagoMixtoInicial } from '@/features/ventas/pos/pagoMixto'
+import type { PagoLinea } from '@/features/ventas/pos/pagoMixto'
+import type { Database, MedioPago } from '@/shared/types/database'
 
 type ProductoDetalle = Database['public']['Views']['vw_productos_detalle']['Row']
 type VehiculoRow = Database['public']['Tables']['vehiculos']['Row']
@@ -32,8 +37,8 @@ type UltimoServicio = {
   kilometraje: number | null
 }
 
+// La fecha no va en el formulario: por defecto es hoy (hora de Lima); se puede cambiar con la casilla "otra fecha".
 const servicioSchema = z.object({
-  fecha_servicio: z.string().min(1, 'Requerido'),
   kilometraje: z
     .number({ invalid_type_error: 'Ingresa un número' })
     .int('Debe ser un número entero')
@@ -46,14 +51,8 @@ const servicioSchema = z.object({
 
 type ServicioFormValues = z.infer<typeof servicioSchema>
 
-function SpinnerIcon() {
-  return (
-    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-    </svg>
-  )
-}
+const etiquetaVehiculo = (v: Pick<VehiculoRow, 'marca_vehiculo' | 'modelo' | 'anio'>) =>
+  [v.marca_vehiculo, v.modelo, v.anio].filter(Boolean).join(' ')
 
 export default function NuevoServicioPage() {
   const navigate = useNavigate()
@@ -62,43 +61,33 @@ export default function NuevoServicioPage() {
 
   const vehiculoIdFromUrl = searchParams.get('vehiculo_id')
 
-  // Vehicle selection state
   const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState<VehiculoConCliente | null>(null)
   const [placaSearch, setPlacaSearch] = useState('')
-  const [dropdownOpen, setDropdownOpen] = useState(false)
   const debouncedPlaca = useDebounce(placaSearch, 300)
-  const searchInputRef = useRef<HTMLInputElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
+  const placaInputRef = useRef<HTMLInputElement>(null)
 
-  // Product search state
   const [productoSearch, setProductoSearch] = useState('')
   const debouncedProducto = useDebounce(productoSearch, 300)
-  const [productDropdownOpen, setProductDropdownOpen] = useState(false)
-  const productDropdownRef = useRef<HTMLDivElement>(null)
 
-  // Cart
   const [cartItems, setCartItems] = useState<CartItem[]>([])
-
-  // Submitting
+  const [montoServicio, setMontoServicio] = useState<number>(0)
+  const [medioPago, setMedioPago] = useState<MedioPago>('efectivo')
+  const [lineasPago, setLineasPago] = useState<PagoLinea[]>([])
+  const [otraFecha, setOtraFecha] = useState(false)
+  const [fecha, setFecha] = useState(hoyLima)
   const [submitting, setSubmitting] = useState(false)
 
-  // React Hook Form
   const {
     register,
     handleSubmit,
     formState: { errors, isValid },
   } = useForm<ServicioFormValues>({
     resolver: zodResolver(servicioSchema),
-    defaultValues: {
-      fecha_servicio: new Date().toISOString().split('T')[0],
-      kilometraje: null,
-      descripcion: '',
-      observaciones: '',
-    },
+    defaultValues: { kilometraje: null, descripcion: '', observaciones: '' },
     mode: 'onChange',
   })
 
-  // Load vehicle from URL param
+  // Vehículo recibido por URL (?vehiculo_id=…)
   const { data: vehiculoFromUrl, isLoading: loadingVehiculoUrl } = useQuery({
     queryKey: ['vehiculo-url', vehiculoIdFromUrl, user?.sucursal_id],
     queryFn: async () => {
@@ -117,13 +106,11 @@ export default function NuevoServicioPage() {
   })
 
   useEffect(() => {
-    if (vehiculoFromUrl && !vehiculoSeleccionado) {
-      setVehiculoSeleccionado(vehiculoFromUrl)
-    }
+    if (vehiculoFromUrl && !vehiculoSeleccionado) setVehiculoSeleccionado(vehiculoFromUrl)
   }, [vehiculoFromUrl, vehiculoSeleccionado])
 
-  // Vehicle search query (only when no URL param)
-  const { data: vehiculosEncontrados } = useQuery({
+  // Búsqueda de vehículo por placa
+  const { data: vehiculosEncontrados = [], isFetching: buscandoVehiculo } = useQuery({
     queryKey: ['vehiculos-search', debouncedPlaca, user?.sucursal_id],
     queryFn: async () => {
       if (!debouncedPlaca.trim() || !user?.sucursal_id) return []
@@ -140,7 +127,7 @@ export default function NuevoServicioPage() {
     enabled: !!debouncedPlaca.trim() && !vehiculoIdFromUrl && !!user?.sucursal_id,
   })
 
-  // Last service for selected vehicle
+  // Última atención del vehículo
   const { data: ultimoServicio } = useQuery({
     queryKey: ['ultimo-servicio', vehiculoSeleccionado?.id],
     queryFn: async () => {
@@ -158,8 +145,8 @@ export default function NuevoServicioPage() {
     enabled: !!vehiculoSeleccionado?.id,
   })
 
-  // Product search query
-  const { data: productosEncontrados } = useQuery({
+  // Búsqueda de productos
+  const { data: productosEncontrados = [], isFetching: buscandoProducto } = useQuery({
     queryKey: ['productos-search', debouncedProducto, user?.sucursal_id],
     queryFn: async () => {
       if (!debouncedProducto.trim() || !user?.sucursal_id) return []
@@ -177,81 +164,24 @@ export default function NuevoServicioPage() {
     enabled: !!debouncedProducto.trim() && !!user?.sucursal_id,
   })
 
-  // Close vehicle dropdown on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
-        setDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  // Close product dropdown on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (
-        productDropdownRef.current &&
-        !productDropdownRef.current.contains(e.target as Node)
-      ) {
-        setProductDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  // Show dropdown when results arrive
-  useEffect(() => {
-    if (vehiculosEncontrados && vehiculosEncontrados.length > 0) {
-      setDropdownOpen(true)
-    }
-  }, [vehiculosEncontrados])
-
-  useEffect(() => {
-    if (productosEncontrados && productosEncontrados.length > 0 && debouncedProducto.trim()) {
-      setProductDropdownOpen(true)
-    }
-  }, [productosEncontrados, debouncedProducto])
-
   function handleSelectVehiculo(v: VehiculoConCliente) {
     setVehiculoSeleccionado(v)
     setPlacaSearch('')
-    setDropdownOpen(false)
   }
 
   function handleClearVehiculo() {
     setVehiculoSeleccionado(null)
     setPlacaSearch('')
-    setTimeout(() => searchInputRef.current?.focus(), 50)
+    setTimeout(() => placaInputRef.current?.focus(), 50)
   }
 
   function handleAddProducto(p: ProductoDetalle) {
     setCartItems((prev) => {
       const existing = prev.find((item) => item.producto_id === p.id)
-      if (existing) {
-        return prev.map((item) =>
-          item.producto_id === p.id
-            ? { ...item, cantidad: item.cantidad + 1 }
-            : item
-        )
-      }
-      return [
-        ...prev,
-        {
-          producto_id: p.id,
-          nombre: p.nombre,
-          cantidad: 1,
-          precio_unitario: p.precio_venta,
-        },
-      ]
+      if (existing) return prev.map((item) => (item.producto_id === p.id ? { ...item, cantidad: item.cantidad + 1 } : item))
+      return [...prev, { producto_id: p.id, nombre: p.nombre, cantidad: 1, precio_unitario: p.precio_venta }]
     })
     setProductoSearch('')
-    setProductDropdownOpen(false)
   }
 
   function handleRemoveCartItem(producto_id: string) {
@@ -260,30 +190,42 @@ export default function NuevoServicioPage() {
 
   function handleCartQtyChange(producto_id: string, qty: number) {
     if (qty < 1) return
-    setCartItems((prev) =>
-      prev.map((i) => (i.producto_id === producto_id ? { ...i, cantidad: qty } : i))
-    )
+    setCartItems((prev) => prev.map((i) => (i.producto_id === producto_id ? { ...i, cantidad: qty } : i)))
   }
 
   function handleCartPriceChange(producto_id: string, precio: number) {
     if (precio < 0) return
-    setCartItems((prev) =>
-      prev.map((i) =>
-        i.producto_id === producto_id ? { ...i, precio_unitario: precio } : i
-      )
-    )
+    setCartItems((prev) => prev.map((i) => (i.producto_id === producto_id ? { ...i, precio_unitario: precio } : i)))
   }
 
-  const [montoServicio, setMontoServicio] = useState<number>(0)
-
-  const cartTotal = cartItems.reduce(
-    (sum, item) => sum + item.cantidad * item.precio_unitario,
-    0
-  )
+  const cartTotal = cartItems.reduce((sum, item) => sum + item.cantidad * item.precio_unitario, 0)
   const totalFinal = cartTotal + montoServicio
 
+  const clienteId = vehiculoSeleccionado?.cliente_id ?? null
+  const creditoSinCliente = medioPago === 'credito' && !clienteId
+  const esMixto = medioPago === 'mixto'
+  const errorMixto = esMixto ? errorPagoMixto(lineasPago, totalFinal) : null
+
+  const hoy = hoyLima()
+  const fechaMinima = diasAtrasLima(365)
+  const fechaError = !otraFecha
+    ? null
+    : !fecha
+      ? 'Elige la fecha del servicio.'
+      : fecha > hoy
+        ? 'La fecha no puede ser futura.'
+        : fecha < fechaMinima
+          ? 'La fecha no puede tener más de un año de antigüedad.'
+          : null
+
+  function elegirMedioPago(m: MedioPago) {
+    setMedioPago(m)
+    // Al pasar a mixto se reparte todo el total en efectivo para ir ajustando desde ahí
+    if (m === 'mixto') setLineasPago(pagoMixtoInicial(totalFinal))
+  }
+
   const onSubmit = handleSubmit(async (values) => {
-    if (!vehiculoSeleccionado || !user) return
+    if (!vehiculoSeleccionado || !user || creditoSinCliente || errorMixto || fechaError) return
     setSubmitting(true)
     try {
       const items = cartItems.map((item) => ({
@@ -298,8 +240,11 @@ export default function NuevoServicioPage() {
         p_items: items,
         p_kilometraje: values.kilometraje ?? null,
         p_observaciones: values.observaciones || null,
-        p_cliente_id: vehiculoSeleccionado.cliente_id ?? null,
+        p_cliente_id: clienteId,
         p_monto_servicio: montoServicio,
+        p_medio_pago: medioPago,
+        p_detalles_pago: esMixto ? aDetallesRpc(lineasPago) : null,
+        p_fecha_servicio: otraFecha ? fecha : null,
       })
 
       if (error) throw error
@@ -307,439 +252,349 @@ export default function NuevoServicioPage() {
       toast.success('Atención registrada correctamente')
       navigate(`/vehiculos/${vehiculoSeleccionado.id}`)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al registrar la atención'
-      toast.error(message)
+      toast.error(err instanceof Error ? err.message : 'Error al registrar la atención')
     } finally {
       setSubmitting(false)
     }
   })
 
-  const canSubmit = !!vehiculoSeleccionado && isValid && !submitting
+  const canSubmit = !!vehiculoSeleccionado && isValid && !submitting && !creditoSinCliente && !errorMixto && !fechaError
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5 pb-10">
-      {/* Top bar */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700 text-sm transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          Volver
-        </button>
-        <h1 className="text-2xl font-bold text-[#1F3864]">Nueva atención</h1>
-      </div>
+    <div className="mx-auto max-w-6xl p-4 sm:p-6">
+      <PageHeader back title="Nueva atención" description="Registra el servicio realizado, los productos usados y el cobro." />
 
       <form onSubmit={onSubmit} noValidate>
-        <div className="lg:grid lg:grid-cols-[1fr_380px] lg:gap-5 space-y-5 lg:space-y-0">
-
-          {/* ─── LEFT COLUMN ─── */}
+        <div className="space-y-5 lg:grid lg:grid-cols-[1fr_380px] lg:gap-5 lg:space-y-0">
+          {/* ─── Columna izquierda ─── */}
           <div className="space-y-5">
-
-            {/* Section A: Vehicle selection */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
-              <h2 className="text-base font-semibold text-[#1F3864]">Vehículo</h2>
+            <section className="card space-y-4 p-4 sm:p-5" aria-labelledby="sec-vehiculo">
+              <h2 id="sec-vehiculo" className="text-base font-semibold text-primary-700">
+                Vehículo
+              </h2>
 
               {loadingVehiculoUrl && (
-                <div className="flex items-center gap-2 text-gray-500 text-sm">
-                  <SpinnerIcon />
+                <p role="status" className="text-sm text-fg-muted">
                   Cargando vehículo…
-                </div>
+                </p>
               )}
 
               {!vehiculoSeleccionado && !vehiculoIdFromUrl && (
-                <div ref={dropdownRef} className="relative">
-                  <input
-                    ref={searchInputRef}
-                    autoFocus
-                    type="text"
-                    className="input-field font-mono text-xl uppercase tracking-wider"
-                    placeholder="Ingresa la placa del vehículo"
-                    value={placaSearch}
-                    maxLength={8}
-                    onChange={(e) => {
-                      const val = e.target.value.toUpperCase().trim()
-                      setPlacaSearch(val)
-                      if (!val) setDropdownOpen(false)
-                    }}
-                  />
-
-                  {dropdownOpen && vehiculosEncontrados && vehiculosEncontrados.length > 0 && (
-                    <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                      {vehiculosEncontrados.map((v) => (
-                        <button
-                          key={v.id}
-                          type="button"
-                          onClick={() => handleSelectVehiculo(v)}
-                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 text-left border-b border-gray-50 last:border-0 transition-colors"
-                        >
-                          <span className="bg-[#1F3864] text-white text-sm font-mono px-2 py-0.5 rounded shrink-0">
-                            {v.placa}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-gray-800">
-                              {[v.marca_vehiculo, v.modelo, v.anio].filter(Boolean).join(' ')}
-                            </p>
-                            {v.clientes && (
-                              <p className="text-xs text-gray-500">{v.clientes.nombre}</p>
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {dropdownOpen === false &&
-                    debouncedPlaca.trim().length >= 2 &&
-                    vehiculosEncontrados &&
-                    vehiculosEncontrados.length === 0 && (
-                      <div className="mt-2 text-sm text-gray-500">
+                <>
+                  <SearchCombobox<VehiculoConCliente>
+                    label="Placa del vehículo"
+                    placeholder="Ingresa la placa"
+                    query={placaSearch}
+                    onQueryChange={(v) => setPlacaSearch(v.toUpperCase().trim())}
+                    items={vehiculosEncontrados}
+                    loading={buscandoVehiculo}
+                    getKey={(v) => v.id}
+                    onSelect={handleSelectVehiculo}
+                    inputRef={placaInputRef}
+                    inputClassName="font-mono text-xl uppercase tracking-wider"
+                    inputProps={{ maxLength: 8, autoFocus: true, autoCapitalize: 'characters' }}
+                    emptyMessage={
+                      <>
                         No encontrado —{' '}
-                        <Link
-                          to="/vehiculos/nuevo"
-                          className="text-[#1F3864] hover:underline font-medium"
-                        >
-                          Registrar nuevo vehículo
+                        <Link to="/vehiculos/nuevo" className="font-medium text-primary-700 hover:underline">
+                          registrar nuevo vehículo
                         </Link>
+                      </>
+                    }
+                    renderItem={(v) => (
+                      <div className="flex items-center gap-3">
+                        <span className="shrink-0 rounded bg-primary-700 px-2 py-0.5 font-mono text-sm text-white">{v.placa}</span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-fg">{etiquetaVehiculo(v) || 'Sin datos'}</p>
+                          {v.clientes && <p className="text-xs text-fg-muted">{v.clientes.nombre}</p>}
+                        </div>
                       </div>
                     )}
-                </div>
+                  />
+                </>
               )}
 
-              {/* Vehicle Info Card */}
               {vehiculoSeleccionado && (
-                <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <span className="bg-[#1F3864] text-white font-mono text-lg px-3 py-1 rounded inline-block">
-                        {vehiculoSeleccionado.placa}
-                      </span>
-                      <div className="text-sm text-gray-700 mt-1">
-                        {[
-                          vehiculoSeleccionado.marca_vehiculo,
-                          vehiculoSeleccionado.modelo,
-                          vehiculoSeleccionado.anio,
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
-                        {vehiculoSeleccionado.color && (
-                          <span className="text-gray-500"> · {vehiculoSeleccionado.color}</span>
-                        )}
-                      </div>
+                <div className="space-y-3 rounded-lg border border-blue-100 bg-blue-50 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="inline-block rounded bg-primary-700 px-3 py-1 font-mono text-lg text-white">{vehiculoSeleccionado.placa}</span>
+                      <p className="mt-1 text-sm text-fg-muted">
+                        {etiquetaVehiculo(vehiculoSeleccionado)}
+                        {vehiculoSeleccionado.color && <span className="text-fg-subtle"> · {vehiculoSeleccionado.color}</span>}
+                      </p>
                     </div>
-
                     {!vehiculoIdFromUrl && (
                       <button
                         type="button"
                         onClick={handleClearVehiculo}
-                        className="text-sm text-gray-400 hover:text-gray-600 transition-colors shrink-0 ml-2"
+                        className="inline-flex min-h-touch shrink-0 items-center rounded-lg px-2 text-sm font-medium text-fg-muted transition-colors hover:text-fg md:min-h-0"
                       >
                         Cambiar vehículo
                       </button>
                     )}
                   </div>
 
-                  {vehiculoSeleccionado.clientes && (
-                    <div className="flex flex-wrap gap-4 text-sm text-gray-700 border-t border-blue-100 pt-3">
-                      <div className="flex items-center gap-1.5">
-                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                        <span>{vehiculoSeleccionado.clientes.nombre}</span>
-                      </div>
+                  {vehiculoSeleccionado.clientes ? (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-blue-100 pt-3 text-sm text-fg-muted">
+                      <span className="flex items-center gap-1.5">
+                        <User className="h-4 w-4 text-fg-subtle" aria-hidden="true" />
+                        {vehiculoSeleccionado.clientes.nombre}
+                      </span>
                       {vehiculoSeleccionado.clientes.telefono && (
-                        <div className="flex items-center gap-1.5">
-                          <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                          <span>{vehiculoSeleccionado.clientes.telefono}</span>
-                        </div>
+                        <span className="flex items-center gap-1.5">
+                          <Phone className="h-4 w-4 text-fg-subtle" aria-hidden="true" />
+                          {vehiculoSeleccionado.clientes.telefono}
+                        </span>
                       )}
                     </div>
+                  ) : (
+                    <p className="border-t border-blue-100 pt-3 text-sm text-fg-muted">Este vehículo no tiene cliente asociado.</p>
                   )}
 
-                  <div className="text-xs text-gray-500 border-t border-blue-100 pt-2">
+                  <p className="border-t border-blue-100 pt-2 text-xs text-fg-muted">
                     {ultimoServicio ? (
                       <>
-                        Última atención:{' '}
-                        <span className="font-medium text-gray-700">
-                          {formatDate(ultimoServicio.fecha_servicio)}
-                        </span>
+                        Última atención: <span className="font-medium text-fg">{formatDate(ultimoServicio.fecha_servicio)}</span>
                         {ultimoServicio.kilometraje != null && (
                           <>
-                            {' '}— {' '}
-                            <span className="font-medium text-gray-700">
-                              {ultimoServicio.kilometraje.toLocaleString('es-PE')} km
-                            </span>
+                            {' '}
+                            — <span className="font-medium text-fg">{ultimoServicio.kilometraje.toLocaleString('es-PE')} km</span>
                           </>
                         )}
                       </>
                     ) : (
                       'Sin atenciones previas'
                     )}
-                  </div>
+                  </p>
                 </div>
               )}
-            </div>
+            </section>
 
-            {/* Section B: Service Details */}
             {vehiculoSeleccionado && (
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
-                <h2 className="text-base font-semibold text-[#1F3864]">Detalles del servicio</h2>
+              <section className="card space-y-4 p-4 sm:p-5" aria-labelledby="sec-detalle">
+                <h2 id="sec-detalle" className="text-base font-semibold text-primary-700">
+                  Detalles del servicio
+                </h2>
 
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Date */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="label-text">Fecha del servicio</label>
-                    <input
-                      type="date"
-                      className={cn('input-field', errors.fecha_servicio && 'border-red-400')}
-                      {...register('fecha_servicio')}
-                    />
-                    {errors.fecha_servicio && (
-                      <p className="error-text">{errors.fecha_servicio.message}</p>
+                    {otraFecha ? (
+                      <Field label="Fecha del servicio" required error={fechaError ?? undefined} hint="El cobro se registra hoy en caja; solo cambia la fecha del servicio.">
+                        {(p) => (
+                          <input
+                            {...p}
+                            type="date"
+                            value={fecha}
+                            min={fechaMinima}
+                            max={hoy}
+                            onChange={(e) => setFecha(e.target.value)}
+                            className="input-field"
+                          />
+                        )}
+                      </Field>
+                    ) : (
+                      <>
+                        <p className="label-text">Fecha del servicio</p>
+                        <p className="flex min-h-[40px] items-center gap-2 rounded-lg border border-line bg-muted px-3 text-sm text-fg-muted">
+                          <CalendarDays className="h-4 w-4 text-fg-subtle" aria-hidden="true" />
+                          Hoy, <span className="first-letter:uppercase">{fechaLargaLima()}</span>
+                        </p>
+                      </>
                     )}
+                    <label className="mt-2 flex min-h-touch cursor-pointer items-center gap-2.5 text-sm text-fg-muted md:min-h-0">
+                      <input
+                        type="checkbox"
+                        checked={otraFecha}
+                        onChange={(e) => {
+                          setOtraFecha(e.target.checked)
+                          if (!e.target.checked) setFecha(hoy)
+                        }}
+                        className="h-4 w-4 rounded border-line"
+                      />
+                      Registrar con otra fecha
+                    </label>
                   </div>
 
-                  {/* Kilometraje */}
-                  <div>
-                    <label className="label-text">Kilometraje</label>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      placeholder="85000"
-                      className={cn('input-field', errors.kilometraje && 'border-red-400')}
-                      {...register('kilometraje', {
-                        setValueAs: (v) => (v === '' || v === null ? null : Number(v)),
-                      })}
-                    />
-                    {errors.kilometraje && (
-                      <p className="error-text">{errors.kilometraje.message}</p>
+                  <Field label="Kilometraje" error={errors.kilometraje?.message}>
+                    {(p) => (
+                      <input
+                        {...p}
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        placeholder="85000"
+                        className="input-field"
+                        {...register('kilometraje', { setValueAs: (v) => (v === '' || v === null ? null : Number(v)) })}
+                      />
                     )}
-                  </div>
+                  </Field>
                 </div>
 
-                {/* Descripción */}
-                <div>
-                  <label className="label-text">Descripción del servicio *</label>
-                  <textarea
-                    rows={2}
-                    placeholder="Cambio de aceite 15W40, filtro de aceite..."
-                    className={cn('input-field resize-none', errors.descripcion && 'border-red-400')}
-                    {...register('descripcion')}
-                  />
-                  {errors.descripcion && (
-                    <p className="error-text">{errors.descripcion.message}</p>
+                <Field label="Descripción del servicio" required error={errors.descripcion?.message}>
+                  {(p) => (
+                    <textarea {...p} rows={2} placeholder="Cambio de aceite 15W40, filtro de aceite..." className="input-field resize-none" {...register('descripcion')} />
                   )}
-                </div>
+                </Field>
 
-                {/* Observaciones */}
-                <div>
-                  <label className="label-text">Observaciones</label>
-                  <textarea
-                    rows={2}
-                    placeholder="Notas adicionales..."
-                    className="input-field resize-none"
-                    {...register('observaciones')}
-                  />
-                </div>
-              </div>
+                <Field label="Observaciones">
+                  {(p) => <textarea {...p} rows={2} placeholder="Notas adicionales..." className="input-field resize-none" {...register('observaciones')} />}
+                </Field>
+              </section>
             )}
           </div>
 
-          {/* ─── RIGHT COLUMN: Products Cart ─── */}
-          <div className="space-y-4">
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
-              <h2 className="text-base font-semibold text-[#1F3864]">Productos utilizados</h2>
+          {/* ─── Columna derecha: productos, cobro y total ─── */}
+          <div className="space-y-5">
+            <section className="card space-y-4 p-4 sm:p-5" aria-labelledby="sec-productos">
+              <h2 id="sec-productos" className="text-base font-semibold text-primary-700">
+                Productos utilizados
+              </h2>
 
-              {/* Product search */}
-              <div ref={productDropdownRef} className="relative">
-                <input
-                  type="text"
-                  className="input-field text-sm"
-                  placeholder="Buscar producto por nombre o código..."
-                  value={productoSearch}
-                  onChange={(e) => {
-                    setProductoSearch(e.target.value)
-                    if (!e.target.value.trim()) setProductDropdownOpen(false)
-                  }}
-                  onFocus={() => {
-                    if (productosEncontrados && productosEncontrados.length > 0 && productoSearch.trim()) {
-                      setProductDropdownOpen(true)
-                    }
-                  }}
-                />
-
-                {productDropdownOpen && productosEncontrados && productosEncontrados.length > 0 && (
-                  <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden max-h-64 overflow-y-auto">
-                    {productosEncontrados.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => handleAddProducto(p)}
-                        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-blue-50 text-left border-b border-gray-50 last:border-0 transition-colors"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">{p.nombre}</p>
-                          <p className="text-xs text-gray-500">
-                            {p.codigo_interno} · Stock: {p.stock_actual}
-                          </p>
-                        </div>
-                        <span className="text-sm font-semibold text-[#1F3864] shrink-0">
-                          {formatCurrency(p.precio_venta)}
-                        </span>
-                      </button>
-                    ))}
+              <SearchCombobox<ProductoDetalle>
+                label="Buscar producto"
+                hideLabel
+                placeholder="Buscar producto por nombre o código..."
+                query={productoSearch}
+                onQueryChange={setProductoSearch}
+                items={productosEncontrados}
+                loading={buscandoProducto}
+                getKey={(p) => p.id}
+                onSelect={handleAddProducto}
+                minChars={2}
+                emptyMessage={`Sin resultados para «${debouncedProducto}»`}
+                renderItem={(p) => (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-fg">{p.nombre}</p>
+                      <p className="text-xs text-fg-muted">
+                        {p.codigo_interno} · Stock: {p.stock_actual}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold text-primary-700">{formatCurrency(p.precio_venta)}</span>
                   </div>
                 )}
+              />
 
-                {debouncedProducto.trim().length >= 2 &&
-                  productosEncontrados &&
-                  productosEncontrados.length === 0 && (
-                    <p className="mt-1 text-xs text-gray-400">Sin resultados para "{debouncedProducto}"</p>
-                  )}
-              </div>
-
-              {/* Cart items */}
               {cartItems.length === 0 ? (
-                <div className="text-center py-6 text-gray-400 text-sm border-2 border-dashed border-gray-100 rounded-lg">
-                  Sin productos — busca y agrega arriba
-                </div>
+                <p className="rounded-lg border-2 border-dashed border-line py-6 text-center text-sm text-fg-subtle">Sin productos — busca y agrega arriba</p>
               ) : (
-                <div className="space-y-2">
+                <ul className="space-y-2" aria-label="Productos agregados">
                   {cartItems.map((item) => (
-                    <div
-                      key={item.producto_id}
-                      className="flex items-start gap-2 p-3 rounded-lg border border-gray-100 bg-gray-50"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{item.nombre}</p>
-                        <div className="flex items-center gap-2 mt-1.5">
-                          {/* Cantidad */}
-                          <div className="flex items-center gap-1">
-                            <label className="text-xs text-gray-500">Cant.</label>
+                    <li key={item.producto_id} className="flex items-start gap-2 rounded-lg border border-line bg-muted p-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-fg">{item.nombre}</p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                          <label className="flex items-center gap-1 text-xs text-fg-muted">
+                            Cant.
                             <input
                               type="number"
+                              inputMode="numeric"
                               min={1}
                               value={item.cantidad}
-                              onChange={(e) =>
-                                handleCartQtyChange(item.producto_id, Number(e.target.value))
-                              }
-                              className="w-14 text-xs text-center border border-gray-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#1F3864]"
+                              onChange={(e) => handleCartQtyChange(item.producto_id, Number(e.target.value))}
+                              className="h-[34px] w-14 rounded border border-line bg-card px-1 text-center text-sm text-fg focus:outline-none focus:ring-1 focus:ring-primary-700 [@media(pointer:coarse)]:h-[44px]"
                             />
-                          </div>
-
-                          {/* Precio */}
-                          <div className="flex items-center gap-1">
-                            <label className="text-xs text-gray-500">S/</label>
+                          </label>
+                          <label className="flex items-center gap-1 text-xs text-fg-muted">
+                            S/
                             <input
                               type="number"
+                              inputMode="decimal"
                               min={0}
                               step={0.01}
                               value={item.precio_unitario}
-                              onChange={(e) =>
-                                handleCartPriceChange(item.producto_id, Number(e.target.value))
-                              }
-                              className="w-20 text-xs text-center border border-gray-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#1F3864]"
+                              onChange={(e) => handleCartPriceChange(item.producto_id, Number(e.target.value))}
+                              className="h-[34px] w-20 rounded border border-line bg-card px-1 text-center text-sm text-fg focus:outline-none focus:ring-1 focus:ring-primary-700 [@media(pointer:coarse)]:h-[44px]"
                             />
-                          </div>
-
-                          {/* Subtotal */}
-                          <span className="text-xs text-gray-600 ml-auto">
-                            = {formatCurrency(item.cantidad * item.precio_unitario)}
-                          </span>
+                          </label>
+                          <span className="ml-auto text-sm font-medium text-fg-muted">= {formatCurrency(item.cantidad * item.precio_unitario)}</span>
                         </div>
                       </div>
-
                       <button
                         type="button"
                         onClick={() => handleRemoveCartItem(item.producto_id)}
-                        className="text-gray-300 hover:text-red-500 transition-colors shrink-0 mt-0.5"
-                        title="Eliminar"
+                        aria-label={`Quitar ${item.nombre}`}
+                        className="-mr-1 flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-fg-subtle transition-colors hover:text-red-600 [@media(pointer:coarse)]:h-[44px] [@media(pointer:coarse)]:w-[44px]"
                       >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </button>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
 
-              {/* Mano de obra / cobro por servicio */}
-              <div className="border-t border-gray-100 pt-3">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-sm font-medium text-gray-600">Mano de obra / servicio</label>
-                  <span className="text-xs text-gray-400">adicional a productos</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500 font-medium">S/</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.50}
-                    value={montoServicio}
-                    onChange={(e) => setMontoServicio(Math.max(0, parseFloat(e.target.value) || 0))}
-                    className="input-field py-1.5 text-sm flex-1"
-                    placeholder="0.00"
-                  />
-                </div>
+              <div className="border-t border-line pt-4">
+                <Field label="Mano de obra / servicio (S/)" hint="Se suma al precio de los productos">
+                  {(p) => (
+                    <input
+                      {...p}
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step={0.5}
+                      value={montoServicio || ''}
+                      onChange={(e) => setMontoServicio(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="input-field"
+                      placeholder="0.00"
+                    />
+                  )}
+                </Field>
               </div>
+            </section>
 
-              {/* Total */}
-              <div className="border-t border-gray-100 pt-3 space-y-1">
-                {montoServicio > 0 && (
-                  <div className="flex items-center justify-between text-xs text-gray-400">
-                    <span>Productos</span>
-                    <span>{formatCurrency(cartTotal)}</span>
-                  </div>
+            {vehiculoSeleccionado && (
+              <section className="card space-y-4 p-4 sm:p-5" aria-labelledby="sec-cobro">
+                <h2 id="sec-cobro" className="text-base font-semibold text-primary-700">
+                  Cobro
+                </h2>
+                <RadioCardGroup
+                  layout="grid"
+                  legend="Medio de pago"
+                  value={medioPago}
+                  onChange={elegirMedioPago}
+                  options={MEDIO_PAGO_OPTIONS.map((o) => ({ value: o.value, label: o.label, icon: o.icon }))}
+                />
+                {esMixto && <PagoMixtoEditor total={totalFinal} lineas={lineasPago} onChange={setLineasPago} />}
+                {creditoSinCliente && (
+                  <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
+                    Un servicio a crédito necesita un cliente. Asocia uno al vehículo o elige otro medio de pago.
+                  </p>
                 )}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 font-semibold">Total a cobrar</span>
-                  <span className="text-2xl font-bold text-[#1F3864]">
-                    {formatCurrency(totalFinal)}
-                  </span>
-                </div>
-              </div>
-            </div>
+
+                <dl className="space-y-1 border-t border-line pt-4">
+                  {montoServicio > 0 && (
+                    <div className="flex items-center justify-between text-xs text-fg-muted">
+                      <dt>Productos</dt>
+                      <dd>{formatCurrency(cartTotal)}</dd>
+                    </div>
+                  )}
+                  {montoServicio > 0 && (
+                    <div className="flex items-center justify-between text-xs text-fg-muted">
+                      <dt>Mano de obra</dt>
+                      <dd>{formatCurrency(montoServicio)}</dd>
+                    </div>
+                  )}
+                  <div className="flex items-baseline justify-between">
+                    <dt className="text-sm font-semibold text-fg-muted">Total a cobrar</dt>
+                    <dd className="font-display text-2xl font-bold tabular-nums text-primary-700">{formatCurrency(totalFinal)}</dd>
+                  </div>
+                </dl>
+              </section>
+            )}
           </div>
         </div>
 
-        {/* Submit button — full width below both columns */}
-        <div className="mt-5">
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className={cn(
-              'w-full py-3 rounded-xl text-white font-semibold text-base flex items-center justify-center gap-2 transition-opacity shadow-sm',
-              canSubmit ? 'hover:opacity-90' : 'opacity-50 cursor-not-allowed'
-            )}
-            style={{ background: 'linear-gradient(135deg, #1F3864, #0ea5e9)' }}
-          >
-            {submitting ? (
-              <>
-                <SpinnerIcon />
-                Registrando…
-              </>
-            ) : (
-              <>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-                Registrar atención
-              </>
-            )}
-          </button>
-
-          {!vehiculoSeleccionado && (
-            <p className="text-center text-sm text-gray-400 mt-2">
-              Selecciona un vehículo para continuar
-            </p>
-          )}
-        </div>
+        <FormActions align="end" className="lg:mt-5">
+          <div className="!flex-none self-center text-left md:hidden" aria-hidden="true">
+            <p className="text-xs text-fg-muted">Total</p>
+            <p className="font-display text-lg font-bold leading-tight text-primary-700">{formatCurrency(totalFinal)}</p>
+          </div>
+          <Button type="submit" size="lg" loading={submitting} disabled={!canSubmit} className="sm:min-w-[220px]">
+            {submitting ? 'Registrando…' : 'Registrar atención'}
+          </Button>
+        </FormActions>
+        {!vehiculoSeleccionado && <p className="mt-2 text-center text-sm text-fg-subtle">Selecciona un vehículo para continuar</p>}
       </form>
     </div>
   )

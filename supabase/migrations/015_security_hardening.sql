@@ -34,12 +34,12 @@ begin
   v_rol := current_user_role();
   
   -- Superadmin siempre tiene acceso a todo
-  if v_rol = ''superadmin'' then
+  if v_rol = 'superadmin' then
     return;
   end if;
   
   if not (v_rol = any(p_roles)) then
-    raise exception ''No tienes permisos para realizar esta accion (Requiere: %, Tienes: %)'', array_to_string(p_roles, '', ''), v_rol;
+    raise exception 'No tienes permisos para realizar esta accion (Requiere: %, Tienes: %)', array_to_string(p_roles, ', '), v_rol;
   end if;
 end;
 $$;
@@ -65,10 +65,10 @@ begin
   v_sucursal_id := current_sucursal_id();
   v_usuario_id  := current_usuario_id();
 
-  perform require_role(array[''admin'', ''almacen'']);
+  perform require_role(array['admin', 'almacen']);
 
   if p_stock_nuevo < 0 then
-    raise exception ''El stock no puede ser negativo'';
+    raise exception 'El stock no puede ser negativo';
   end if;
 
   select stock_actual into v_stock_ant
@@ -77,22 +77,22 @@ begin
   for update;
 
   if not found then
-    raise exception ''Producto no encontrado o no pertenece a tu sucursal'';
+    raise exception 'Producto no encontrado o no pertenece a tu sucursal';
   end if;
 
   v_diferencia := p_stock_nuevo - v_stock_ant;
   if v_diferencia = 0 then
-    return jsonb_build_object(''status'', ''sin_cambios'');
+    return jsonb_build_object('status', 'sin_cambios');
   end if;
 
-  v_tipo := case when v_diferencia > 0 then ''entrada''::tipo_movimiento_stock else ''salida''::tipo_movimiento_stock end;
+  v_tipo := case when v_diferencia > 0 then 'entrada'::tipo_movimiento_stock else 'salida'::tipo_movimiento_stock end;
 
   insert into movimientos_stock (
     sucursal_id, producto_id, usuario_id, tipo, cantidad,
     cantidad_anterior, cantidad_nueva, motivo, referencia_tipo
   ) values (
     v_sucursal_id, p_producto_id, v_usuario_id, v_tipo, abs(v_diferencia),
-    v_stock_ant, p_stock_nuevo, p_motivo, ''ajuste''
+    v_stock_ant, p_stock_nuevo, p_motivo, 'ajuste'
   );
 
   update productos
@@ -100,10 +100,10 @@ begin
   where id = p_producto_id;
 
   return jsonb_build_object(
-    ''producto_id'', p_producto_id,
-    ''stock_anterior'', v_stock_ant,
-    ''stock_nuevo'', p_stock_nuevo,
-    ''diferencia'', v_diferencia
+    'producto_id', p_producto_id,
+    'stock_anterior', v_stock_ant,
+    'stock_nuevo', p_stock_nuevo,
+    'diferencia', v_diferencia
   );
 end;
 $$;
@@ -118,7 +118,7 @@ grant execute on all functions in schema public to authenticated;
 grant execute on all functions in schema public to service_role;
 
 -- Revocamos registrar_movimiento_stock a authenticated ya que es de uso interno
-revoke execute on function registrar_movimiento_stock(uuid, tipo_movimiento_stock, integer, text, text, text) from authenticated;
+revoke execute on function registrar_movimiento_stock(uuid, tipo_movimiento_stock, integer, text, text, uuid) from authenticated;
 
 -- Creamos registrar_entrada_stock para ser usada desde Importacion u otros que lo requieran con rol
 create or replace function registrar_entrada_stock(
@@ -132,22 +132,22 @@ security definer
 set search_path = public
 as $$
 begin
-  perform require_role(array[''admin'', ''almacen'']);
+  perform require_role(array['admin', 'almacen']);
   
   if p_cantidad <= 0 then
-    raise exception ''La cantidad debe ser mayor a cero'';
+    raise exception 'La cantidad debe ser mayor a cero';
   end if;
   
   perform registrar_movimiento_stock(
     p_producto_id,
-    ''entrada'',
+    'entrada',
     p_cantidad,
     p_motivo,
-    ''entrada_manual'',
+    'entrada_manual',
     null
   );
   
-  return jsonb_build_object(''status'', ''ok'');
+  return jsonb_build_object('status', 'ok');
 end;
 $$;
 grant execute on function registrar_entrada_stock(uuid, integer, text) to authenticated;
@@ -156,18 +156,31 @@ grant execute on function registrar_entrada_stock(uuid, integer, text) to authen
 -- 2.4 QUITAR UPDATE DIRECTO Y 2.5 WITH CHECK USUARIOS
 -- ============================================================
 
--- Productos: los usuarios no pueden hacer UPDATE directo al stock, solo via RPC.
+-- Productos: el stock solo cambia vía RPC (registrar_movimiento_stock, ajustar_stock, etc.).
+-- Las políticas RLS se SUMAN (OR), así que hay que borrar la original de 003 ("productos_update").
+-- Y como RLS no puede comparar valor anterior/nuevo, el stock se protege con privilegios por
+-- columna: el rol authenticated puede actualizar todo MENOS stock_actual. Las funciones
+-- SECURITY DEFINER (dueño postgres) sí pueden.
+drop policy if exists "productos_update" on productos;
 drop policy if exists "usuarios_update_productos" on productos;
-create policy "usuarios_update_productos"
+create policy "productos_update"
 on productos for update
 to authenticated
 using (
   sucursal_id = current_sucursal_id()
-  and current_user_role() in (''superadmin'', ''admin'', ''almacen'')
+  and current_user_role() in ('superadmin', 'admin', 'almacen')
 )
 with check (
-  stock_actual = stock_actual -- El stock no se puede cambiar en UPDATE REST directo
+  sucursal_id = current_sucursal_id()
+  and current_user_role() in ('superadmin', 'admin', 'almacen')
 );
+
+revoke update on productos from authenticated;
+grant update (
+  categoria_id, ubicacion_id, codigo_interno, codigo_barras, nombre, marca,
+  viscosidad_especificacion, precio_venta, costo, stock_minimo,
+  tiene_codigo_barras, foto_url, activo, updated_at
+) on productos to authenticated;
 
 -- Usuarios: Evitar escalar privilegios
 drop policy if exists "usuarios_update_admin" on usuarios;
@@ -175,14 +188,14 @@ create policy "usuarios_update_admin"
 on usuarios for update
 to authenticated
 using (
-  current_user_role() = ''superadmin'' 
-  or (current_user_role() = ''admin'' and sucursal_id = current_sucursal_id())
+  current_user_role() = 'superadmin' 
+  or (current_user_role() = 'admin' and sucursal_id = current_sucursal_id())
 )
 with check (
-  current_user_role() = ''superadmin''
+  current_user_role() = 'superadmin'
   or (
-    current_user_role() = ''admin'' 
-    and rol <> ''superadmin'' -- Admin no puede crear superadmins
+    current_user_role() = 'admin' 
+    and rol <> 'superadmin' -- Admin no puede crear superadmins
     and sucursal_id = current_sucursal_id() -- No puede cambiar usuarios a otra sucursal
   )
 );
@@ -201,7 +214,7 @@ select
   p.marca,
   p.viscosidad_especificacion,
   p.precio_venta,
-  case when current_user_role() in (''superadmin'', ''admin'') then p.costo else 0 end as costo,
+  (case when current_user_role() in ('superadmin', 'admin') then p.costo else 0 end)::numeric(10,2) as costo,
   p.stock_actual,
   p.stock_minimo,
   p.tiene_codigo_barras,
@@ -217,58 +230,58 @@ select
   u.nivel,
   u.codigo as ubicacion_codigo,
   case
-    when p.stock_actual = 0 then ''agotado''
-    when p.stock_actual <= p.stock_minimo then ''bajo''
-    else ''ok''
+    when p.stock_actual = 0 then 'agotado'
+    when p.stock_actual <= p.stock_minimo then 'bajo'
+    else 'ok'
   end as stock_estado,
-  case when current_user_role() in (''superadmin'', ''admin'') then p.costo * p.stock_actual else 0 end as valor_costo_total,
+  case when current_user_role() in ('superadmin', 'admin') then p.costo * p.stock_actual else 0 end as valor_costo_total,
   p.precio_venta * p.stock_actual as valor_venta_total
 from productos p
 left join categorias c on c.id = p.categoria_id
 left join ubicaciones u on u.id = p.ubicacion_id;
--- Nota: La vista no cambia los tipos de dato, solo oculta el valor.
+-- Nota: se castea costo a numeric(10,2) para conservar el tipo original de la columna
+-- (create or replace view no permite cambiarlo).
 
 -- ============================================================
 -- 2.8 BUCKET POLICIES (STORAGE)
 -- ============================================================
 insert into storage.buckets (id, name, public) 
-values (''product-images'', ''product-images'', true)
+values ('product-images', 'product-images', true)
 on conflict (id) do nothing;
 
 create policy "product_images_public_read"
 on storage.objects for select
 to public
-using ( bucket_id = ''product-images'' );
+using ( bucket_id = 'product-images' );
 
 create policy "product_images_insert"
 on storage.objects for insert
 to authenticated
 with check (
-  bucket_id = ''product-images'' 
-  and current_user_role() in (''superadmin'', ''admin'', ''almacen'')
+  bucket_id = 'product-images' 
+  and current_user_role() in ('superadmin', 'admin', 'almacen')
 );
 
 create policy "product_images_update"
 on storage.objects for update
 to authenticated
 using (
-  bucket_id = ''product-images'' 
-  and current_user_role() in (''superadmin'', ''admin'', ''almacen'')
+  bucket_id = 'product-images' 
+  and current_user_role() in ('superadmin', 'admin', 'almacen')
 );
 
 create policy "product_images_delete"
 on storage.objects for delete
 to authenticated
 using (
-  bucket_id = ''product-images'' 
-  and current_user_role() in (''superadmin'', ''admin'', ''almacen'')
+  bucket_id = 'product-images' 
+  and current_user_role() in ('superadmin', 'admin', 'almacen')
 );
 
--- Evitar updates directos a las tablas de caja y creditos_cliente
+-- Cajas y créditos solo se modifican vía RPC (security definer). Sin política de UPDATE,
+-- RLS deniega el UPDATE directo. Se borran las políticas originales de 003 (los nombres
+-- reales son "cajas_update" y "creditos_update") y las que esta migración creó antes.
+drop policy if exists "cajas_update" on cajas;
+drop policy if exists "creditos_update" on creditos_cliente;
 drop policy if exists "usuarios_update_cajas" on cajas;
 drop policy if exists "usuarios_update_creditos" on creditos_cliente;
--- Solo permitiremos updates por RLS a cajas/creditos si es necesario por el cliente, pero en realidad todo se hace por RPC con security definer
--- Así que denegamos el update directo
-create policy "usuarios_update_cajas" on cajas for update to authenticated using (false);
-create policy "usuarios_update_creditos" on creditos_cliente for update to authenticated using (false);
-

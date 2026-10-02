@@ -18,7 +18,8 @@ export function AppProviders({ children }: { children: ReactNode }) {
           }}
         />
       </AuthProvider>
-      <ReactQueryDevtools initialIsOpen={false} />
+      {/* Solo existe en desarrollo; en móvil no se monta para no tapar la barra inferior */}
+      {window.matchMedia('(min-width: 768px)').matches && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   )
 }

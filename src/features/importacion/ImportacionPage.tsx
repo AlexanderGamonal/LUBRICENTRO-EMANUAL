@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Check, FolderOpen, X } from 'lucide-react'
 import { toast } from 'sonner'
 import ExcelJS from 'exceljs'
 import { supabase } from '@/shared/lib/supabase'
@@ -352,7 +353,7 @@ export function ImportacionPage() {
                     : 'bg-white border-gray-300 text-gray-400',
                 )}
               >
-                {step > num ? '✓' : num}
+                {step > num ? <Check className="h-4 w-4" aria-label="completado" /> : num}
               </div>
               <span
                 className={cn(
@@ -391,7 +392,7 @@ export function ImportacionPage() {
                 : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50',
             )}
           >
-            <div className="text-5xl mb-4">📂</div>
+            <FolderOpen className="mx-auto mb-4 h-12 w-12 text-fg-subtle" aria-hidden="true" />
             <p className="text-lg font-medium text-gray-700">
               Arrastra tu archivo aquí
             </p>
@@ -485,9 +486,9 @@ export function ImportacionPage() {
                       <td className="px-3 py-2 text-gray-400">{f.rowNum}</td>
                       <td className="px-3 py-2">
                         {f.valida ? (
-                          <span className="text-green-600 font-bold">✓</span>
+                          <span className="inline-flex text-green-700" role="img" aria-label="Fila válida"><Check className="h-4 w-4" aria-hidden="true" /></span>
                         ) : (
-                          <span className="text-red-600 font-bold">✗</span>
+                          <span className="inline-flex text-red-700" role="img" aria-label="Fila con errores"><X className="h-4 w-4" aria-hidden="true" /></span>
                         )}
                       </td>
                       <td className="px-3 py-2 font-mono text-xs">
