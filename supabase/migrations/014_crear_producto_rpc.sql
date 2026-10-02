@@ -42,27 +42,27 @@ begin
 
   -- Solo admin, superadmin y almacen pueden crear productos
   if v_usuario_id is null then
-    raise exception ''Usuario no autenticado'';
+    raise exception 'Usuario no autenticado';
   end if;
-  if v_rol not in (''admin'', ''superadmin'', ''almacen'') then
-    raise exception ''Sin permisos para crear productos. Rol actual: %'', v_rol;
+  if v_rol not in ('admin', 'superadmin', 'almacen') then
+    raise exception 'Sin permisos para crear productos. Rol actual: %', v_rol;
   end if;
 
   -- Verificar que la sucursal sea la del usuario (superadmin puede crear en cualquiera)
-  if v_rol <> ''superadmin'' and p_sucursal_id <> current_sucursal_id() then
-    raise exception ''No puedes crear productos en otra sucursal'';
+  if v_rol <> 'superadmin' and p_sucursal_id <> current_sucursal_id() then
+    raise exception 'No puedes crear productos en otra sucursal';
   end if;
 
   if p_stock_inicial < 0 then
-    raise exception ''El stock inicial no puede ser negativo'';
+    raise exception 'El stock inicial no puede ser negativo';
   end if;
 
   if p_precio_venta < 0 then
-    raise exception ''El precio de venta no puede ser negativo'';
+    raise exception 'El precio de venta no puede ser negativo';
   end if;
 
   if p_costo < 0 then
-    raise exception ''El costo no puede ser negativo'';
+    raise exception 'El costo no puede ser negativo';
   end if;
 
   -- Insertar producto con stock_actual = 0 siempre
@@ -87,16 +87,16 @@ begin
     p_categoria_id,
     p_ubicacion_id,
     p_codigo_interno,
-    nullif(p_codigo_barras, ''''),
+    nullif(p_codigo_barras, ''),
     p_nombre,
-    nullif(p_marca, ''''),
-    nullif(p_viscosidad_especificacion, ''''),
+    nullif(p_marca, ''),
+    nullif(p_viscosidad_especificacion, ''),
     p_precio_venta,
     p_costo,
     0,  -- stock siempre comienza en 0
     coalesce(p_stock_minimo, 0),
     coalesce(p_tiene_codigo_barras, false),
-    nullif(p_foto_url, ''''),
+    nullif(p_foto_url, ''),
     true
   )
   returning id into v_producto_id;
@@ -105,10 +105,10 @@ begin
   if p_stock_inicial > 0 then
     perform registrar_movimiento_stock(
       v_producto_id,
-      ''entrada'',
+      'entrada',
       p_stock_inicial,
-      ''Stock inicial al crear producto'',
-      ''productos'',
+      'Stock inicial al crear producto',
+      'productos',
       v_producto_id
     );
   end if;
@@ -116,19 +116,19 @@ begin
   insert into auditoria_eventos (
     sucursal_id, usuario_id, entidad, entidad_id, accion, datos_nuevos
   ) values (
-    p_sucursal_id, v_usuario_id, ''productos'', v_producto_id, ''crear_producto'',
+    p_sucursal_id, v_usuario_id, 'productos', v_producto_id, 'crear_producto',
     jsonb_build_object(
-      ''codigo_interno'',  p_codigo_interno,
-      ''nombre'',          p_nombre,
-      ''precio_venta'',    p_precio_venta,
-      ''costo'',           p_costo,
-      ''stock_inicial'',   p_stock_inicial
+      'codigo_interno',  p_codigo_interno,
+      'nombre',          p_nombre,
+      'precio_venta',    p_precio_venta,
+      'costo',           p_costo,
+      'stock_inicial',   p_stock_inicial
     )
   );
 
   return jsonb_build_object(
-    ''producto_id'',   v_producto_id,
-    ''stock_inicial'', p_stock_inicial
+    'producto_id',   v_producto_id,
+    'stock_inicial', p_stock_inicial
   );
 end;
 $$;

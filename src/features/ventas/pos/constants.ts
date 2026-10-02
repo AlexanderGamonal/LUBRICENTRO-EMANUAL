@@ -1,4 +1,4 @@
-import { Banknote, ClipboardList, CreditCard, Landmark, Smartphone } from 'lucide-react'
+import { Banknote, ClipboardList, CreditCard, Landmark, Shuffle, Smartphone } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { MedioPago } from '@/shared/types/database'
 
@@ -47,6 +47,8 @@ export interface VentaCreada {
   medio_pago: MedioPago
   cliente_nombre?: string | null
   created_at: string
+  /** Reparto cuando medio_pago = 'mixto'. */
+  detalles_pago?: { medio: string; monto: number }[]
 }
 
 export const MEDIO_PAGO_OPTIONS: { value: MedioPago; label: string; icon: LucideIcon }[] = [
@@ -56,6 +58,7 @@ export const MEDIO_PAGO_OPTIONS: { value: MedioPago; label: string; icon: Lucide
   { value: 'tarjeta', label: 'Tarjeta', icon: CreditCard },
   { value: 'transferencia', label: 'Transferencia', icon: Landmark },
   { value: 'credito', label: 'Crédito', icon: ClipboardList },
+  { value: 'mixto', label: 'Mixto', icon: Shuffle },
 ]
 
 export const STOCK_BADGE: Record<ProductoDetalle['stock_estado'], { label: string; badgeClass: string; textClass: string }> = {

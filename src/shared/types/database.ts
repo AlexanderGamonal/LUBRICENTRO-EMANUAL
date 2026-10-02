@@ -773,6 +773,8 @@ export interface Database {
           p_cliente_id?: string | null
           p_descuento?: number
           p_observaciones?: string | null
+          /** Solo para p_medio_pago = 'mixto': [{ medio, monto }] con suma igual al total. */
+          p_detalles_pago?: Json | null
         }
         Returns: Json
       }
@@ -789,6 +791,12 @@ export interface Database {
           p_observaciones?: string | null
           p_cliente_id?: string | null
           p_monto_servicio?: number
+          p_medio_pago?: MedioPago
+          p_monto_pagado?: number | null
+          /** Solo para p_medio_pago = 'mixto': [{ medio, monto }] sin superar el total. */
+          p_detalles_pago?: Json | null
+          /** YYYY-MM-DD. null = hoy (Lima). No admite fechas futuras ni de más de 365 días atrás. */
+          p_fecha_servicio?: string | null
         }
         Returns: Json
       }

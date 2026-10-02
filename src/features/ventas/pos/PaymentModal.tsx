@@ -8,6 +8,9 @@ import { cn } from '@/shared/utils/cn'
 import { formatCurrency } from '@/shared/utils/formatters'
 import type { MedioPago } from '@/shared/types/database'
 import { MEDIO_PAGO_OPTIONS, montosRapidos } from './constants'
+import { PagoMixtoEditor } from './PagoMixtoEditor'
+import { aDetallesRpc, errorPagoMixto, pagoMixtoInicial } from './pagoMixto'
+import type { PagoLinea } from './pagoMixto'
 import type { ItemCarrito, VentaCreada } from './constants'
 
 interface PaymentModalProps {
@@ -26,13 +29,16 @@ export function PaymentModal({ total, subtotal, descuento, items, clienteId, cli
   const [montoRecibido, setMontoRecibido] = useState<number>(total)
   const [observaciones, setObservaciones] = useState('')
   const [loading, setLoading] = useState(false)
+  const [lineas, setLineas] = useState<PagoLinea[]>(() => pagoMixtoInicial(total))
   const montoRef = useRef<HTMLInputElement>(null)
 
   const vuelto = montoRecibido - total
   const isEfectivo = medioPago === 'efectivo'
   const isCredito = medioPago === 'credito'
+  const isMixto = medioPago === 'mixto'
+  const errorMixto = isMixto ? errorPagoMixto(lineas, total) : null
   const creditoSinCliente = isCredito && !clienteId
-  const canConfirm = !loading && !creditoSinCliente && (!isEfectivo || montoRecibido >= total)
+  const canConfirm = !loading && !creditoSinCliente && !errorMixto && (!isEfectivo || montoRecibido >= total)
 
   async function handleConfirmar(e?: React.FormEvent) {
     e?.preventDefault()
@@ -51,6 +57,7 @@ export function PaymentModal({ total, subtotal, descuento, items, clienteId, cli
         p_cliente_id: clienteId ?? null,
         p_descuento: descuento,
         p_observaciones: observaciones.trim() || null,
+        p_detalles_pago: isMixto ? aDetallesRpc(lineas) : null,
       })
 
       if (error) throw error
@@ -66,6 +73,7 @@ export function PaymentModal({ total, subtotal, descuento, items, clienteId, cli
         medio_pago: medioPago,
         cliente_nombre: clienteNombre,
         created_at: new Date().toISOString(),
+        detalles_pago: isMixto ? aDetallesRpc(lineas) : undefined,
       })
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al registrar la venta')
@@ -166,6 +174,8 @@ export function PaymentModal({ total, subtotal, descuento, items, clienteId, cli
             {vuelto < 0 && <p className="text-xs font-medium text-red-700 dark:text-red-300">Monto insuficiente — faltan {formatCurrency(Math.abs(vuelto))}</p>}
           </div>
         )}
+
+        {isMixto && <PagoMixtoEditor total={total} lineas={lineas} onChange={setLineas} />}
 
         {isCredito && (
           <div

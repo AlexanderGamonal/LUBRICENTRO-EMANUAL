@@ -47,10 +47,66 @@ test.describe('Nueva atención', () => {
     await expect(page.getByRole('button', { name: 'Registrar atención' })).toBeDisabled()
   })
 
-  test('la fecha se muestra como "Hoy" y no es editable (el servidor registra hoy)', async ({ page }) => {
-    await mockSupabase(page, 'admin', FIXTURES)
+  test('fecha opcional: por defecto es hoy; con la casilla se elige otra y se envía al servidor', async ({ page }) => {
+    const { rpcCalls } = await mockSupabase(page, 'admin', FIXTURES, { registrar_servicio: { servicio_id: 's-1' } })
     await page.goto('/servicios/nuevo?vehiculo_id=veh-1')
+    await page.getByLabel('Descripción del servicio').fill('Cambio de aceite')
+
+    // por defecto: "Hoy", sin campo de fecha
     await expect(page.getByText(/^Hoy,/)).toBeVisible()
     await expect(page.locator('input[type="date"]')).toHaveCount(0)
+
+    // al marcar la casilla aparece el selector, limitado a hoy y a un año atrás
+    await page.getByLabel('Registrar con otra fecha').check()
+    const campo = page.getByLabel('Fecha del servicio')
+    await expect(campo).toBeVisible()
+    const max = await campo.getAttribute('max')
+    const min = await campo.getAttribute('min')
+    expect(max).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(min! < max!).toBe(true)
+
+    // una fecha anterior al mínimo se rechaza en pantalla
+    await campo.fill('2001-01-01')
+    await expect(page.getByText(/más de un año/)).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Registrar atención' })).toBeDisabled()
+
+    await campo.fill(min!)
+    await page.getByRole('button', { name: 'Registrar atención' }).click()
+    await expect(page).toHaveURL(/\/vehiculos\/veh-1$/)
+    expect(rpcCalls.find((c) => c.name === 'registrar_servicio')?.body).toMatchObject({ p_fecha_servicio: min })
+  })
+
+  test('sin la casilla se envía p_fecha_servicio = null (el servidor usa hoy)', async ({ page }) => {
+    const { rpcCalls } = await mockSupabase(page, 'admin', FIXTURES, { registrar_servicio: { servicio_id: 's-1' } })
+    await page.goto('/servicios/nuevo?vehiculo_id=veh-1')
+    await page.getByLabel('Descripción del servicio').fill('Revisión')
+    await page.getByRole('button', { name: 'Registrar atención' }).click()
+    await expect(page).toHaveURL(/\/vehiculos\/veh-1$/)
+    expect(rpcCalls.find((c) => c.name === 'registrar_servicio')?.body.p_fecha_servicio).toBeNull()
+  })
+
+  test('servicio con pago mixto envía el detalle y exige que el reparto cubra el total', async ({ page }) => {
+    const { rpcCalls } = await mockSupabase(page, 'admin', FIXTURES, { registrar_servicio: { servicio_id: 's-1' } })
+    await page.goto('/servicios/nuevo?vehiculo_id=veh-1')
+    await page.getByLabel('Descripción del servicio').fill('Cambio de aceite')
+    await page.getByLabel('Mano de obra / servicio (S/)').fill('100')
+    await page.getByRole('radio', { name: 'Mixto' }).check({ force: true })
+
+    await page.getByRole('spinbutton', { name: /Monto en Efectivo/ }).fill('60')
+    await expect(page.getByText(/Faltan S\/\s40.00/)).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Registrar atención' })).toBeDisabled()
+
+    await page.getByRole('button', { name: 'Agregar medio' }).click()
+    await expect(page.getByRole('spinbutton', { name: /Monto en Yape/ })).toHaveValue('40')
+    await page.getByRole('button', { name: 'Registrar atención' }).click()
+    await expect(page).toHaveURL(/\/vehiculos\/veh-1$/)
+
+    expect(rpcCalls.find((c) => c.name === 'registrar_servicio')?.body).toMatchObject({
+      p_medio_pago: 'mixto',
+      p_detalles_pago: [
+        { medio: 'efectivo', monto: 60 },
+        { medio: 'yape', monto: 40 },
+      ],
+    })
   })
 })

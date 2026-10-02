@@ -114,6 +114,12 @@ export function ReceiptModal({ venta, items, vendedorNombre, onNuevaVenta }: Rec
             <dt>Medio de pago</dt>
             <dd>{medio?.label}</dd>
           </div>
+          {venta.detalles_pago?.map((d) => (
+            <div key={d.medio} className="flex justify-between pl-3 text-xs text-fg-muted">
+              <dt>{MEDIO_PAGO_OPTIONS.find((m) => m.value === d.medio)?.label ?? d.medio}</dt>
+              <dd>{formatCurrency(d.monto)}</dd>
+            </div>
+          ))}
         </dl>
 
         <p className="border-t border-dashed border-line pt-3 text-center text-xs text-fg-muted">¡Gracias por su compra!</p>

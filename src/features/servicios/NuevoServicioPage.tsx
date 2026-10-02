@@ -9,9 +9,12 @@ import { CalendarDays, Phone, Trash2, User } from 'lucide-react'
 import { supabase } from '@/shared/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useDebounce } from '@/shared/hooks/useDebounce'
-import { fechaLargaLima, formatCurrency, formatDate } from '@/shared/utils/formatters'
+import { diasAtrasLima, fechaLargaLima, formatCurrency, formatDate, hoyLima } from '@/shared/utils/formatters'
 import { Button, Field, FormActions, PageHeader, RadioCardGroup, SearchCombobox } from '@/shared/ui'
 import { MEDIO_PAGO_OPTIONS } from '@/features/ventas/pos/constants'
+import { PagoMixtoEditor } from '@/features/ventas/pos/PagoMixtoEditor'
+import { aDetallesRpc, errorPagoMixto, pagoMixtoInicial } from '@/features/ventas/pos/pagoMixto'
+import type { PagoLinea } from '@/features/ventas/pos/pagoMixto'
 import type { Database, MedioPago } from '@/shared/types/database'
 
 type ProductoDetalle = Database['public']['Views']['vw_productos_detalle']['Row']
@@ -34,7 +37,7 @@ type UltimoServicio = {
   kilometraje: number | null
 }
 
-// La fecha no se edita: el servidor siempre registra "hoy" (hora de Lima).
+// La fecha no va en el formulario: por defecto es hoy (hora de Lima); se puede cambiar con la casilla "otra fecha".
 const servicioSchema = z.object({
   kilometraje: z
     .number({ invalid_type_error: 'Ingresa un número' })
@@ -69,6 +72,9 @@ export default function NuevoServicioPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [montoServicio, setMontoServicio] = useState<number>(0)
   const [medioPago, setMedioPago] = useState<MedioPago>('efectivo')
+  const [lineasPago, setLineasPago] = useState<PagoLinea[]>([])
+  const [otraFecha, setOtraFecha] = useState(false)
+  const [fecha, setFecha] = useState(hoyLima)
   const [submitting, setSubmitting] = useState(false)
 
   const {
@@ -197,9 +203,29 @@ export default function NuevoServicioPage() {
 
   const clienteId = vehiculoSeleccionado?.cliente_id ?? null
   const creditoSinCliente = medioPago === 'credito' && !clienteId
+  const esMixto = medioPago === 'mixto'
+  const errorMixto = esMixto ? errorPagoMixto(lineasPago, totalFinal) : null
+
+  const hoy = hoyLima()
+  const fechaMinima = diasAtrasLima(365)
+  const fechaError = !otraFecha
+    ? null
+    : !fecha
+      ? 'Elige la fecha del servicio.'
+      : fecha > hoy
+        ? 'La fecha no puede ser futura.'
+        : fecha < fechaMinima
+          ? 'La fecha no puede tener más de un año de antigüedad.'
+          : null
+
+  function elegirMedioPago(m: MedioPago) {
+    setMedioPago(m)
+    // Al pasar a mixto se reparte todo el total en efectivo para ir ajustando desde ahí
+    if (m === 'mixto') setLineasPago(pagoMixtoInicial(totalFinal))
+  }
 
   const onSubmit = handleSubmit(async (values) => {
-    if (!vehiculoSeleccionado || !user || creditoSinCliente) return
+    if (!vehiculoSeleccionado || !user || creditoSinCliente || errorMixto || fechaError) return
     setSubmitting(true)
     try {
       const items = cartItems.map((item) => ({
@@ -217,6 +243,8 @@ export default function NuevoServicioPage() {
         p_cliente_id: clienteId,
         p_monto_servicio: montoServicio,
         p_medio_pago: medioPago,
+        p_detalles_pago: esMixto ? aDetallesRpc(lineasPago) : null,
+        p_fecha_servicio: otraFecha ? fecha : null,
       })
 
       if (error) throw error
@@ -230,7 +258,7 @@ export default function NuevoServicioPage() {
     }
   })
 
-  const canSubmit = !!vehiculoSeleccionado && isValid && !submitting && !creditoSinCliente
+  const canSubmit = !!vehiculoSeleccionado && isValid && !submitting && !creditoSinCliente && !errorMixto && !fechaError
 
   return (
     <div className="mx-auto max-w-6xl p-4 sm:p-6">
@@ -351,11 +379,41 @@ export default function NuevoServicioPage() {
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <p className="label-text">Fecha del servicio</p>
-                    <p className="flex min-h-[40px] items-center gap-2 rounded-lg border border-line bg-muted px-3 text-sm text-fg-muted">
-                      <CalendarDays className="h-4 w-4 text-fg-subtle" aria-hidden="true" />
-                      Hoy, <span className="first-letter:uppercase">{fechaLargaLima()}</span>
-                    </p>
+                    {otraFecha ? (
+                      <Field label="Fecha del servicio" required error={fechaError ?? undefined} hint="El cobro se registra hoy en caja; solo cambia la fecha del servicio.">
+                        {(p) => (
+                          <input
+                            {...p}
+                            type="date"
+                            value={fecha}
+                            min={fechaMinima}
+                            max={hoy}
+                            onChange={(e) => setFecha(e.target.value)}
+                            className="input-field"
+                          />
+                        )}
+                      </Field>
+                    ) : (
+                      <>
+                        <p className="label-text">Fecha del servicio</p>
+                        <p className="flex min-h-[40px] items-center gap-2 rounded-lg border border-line bg-muted px-3 text-sm text-fg-muted">
+                          <CalendarDays className="h-4 w-4 text-fg-subtle" aria-hidden="true" />
+                          Hoy, <span className="first-letter:uppercase">{fechaLargaLima()}</span>
+                        </p>
+                      </>
+                    )}
+                    <label className="mt-2 flex min-h-touch cursor-pointer items-center gap-2.5 text-sm text-fg-muted md:min-h-0">
+                      <input
+                        type="checkbox"
+                        checked={otraFecha}
+                        onChange={(e) => {
+                          setOtraFecha(e.target.checked)
+                          if (!e.target.checked) setFecha(hoy)
+                        }}
+                        className="h-4 w-4 rounded border-line"
+                      />
+                      Registrar con otra fecha
+                    </label>
                   </div>
 
                   <Field label="Kilometraje" error={errors.kilometraje?.message}>
@@ -494,9 +552,10 @@ export default function NuevoServicioPage() {
                   layout="grid"
                   legend="Medio de pago"
                   value={medioPago}
-                  onChange={setMedioPago}
+                  onChange={elegirMedioPago}
                   options={MEDIO_PAGO_OPTIONS.map((o) => ({ value: o.value, label: o.label, icon: o.icon }))}
                 />
+                {esMixto && <PagoMixtoEditor total={totalFinal} lineas={lineasPago} onChange={setLineasPago} />}
                 {creditoSinCliente && (
                   <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
                     Un servicio a crédito necesita un cliente. Asocia uno al vehículo o elige otro medio de pago.

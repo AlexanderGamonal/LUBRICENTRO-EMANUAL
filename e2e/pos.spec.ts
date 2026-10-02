@@ -3,9 +3,10 @@ import { mockSupabase, type MockRol } from './helpers/mockSupabase'
 import { FIXTURES } from './fixtures'
 
 async function abrirPos(page: import('@playwright/test').Page, rol: MockRol = 'admin') {
-  await mockSupabase(page, rol, FIXTURES, { crear_venta: { venta_id: 'a1b2c3d4-0000-0000-0000-000000000000' } })
+  const mock = await mockSupabase(page, rol, FIXTURES, { crear_venta: { venta_id: 'a1b2c3d4-0000-0000-0000-000000000000' } })
   await page.goto('/ventas/nueva')
   await expect(page.getByRole('searchbox', { name: /buscar producto/i })).toBeVisible()
+  return mock
 }
 
 test.describe('POS — escritorio', () => {
@@ -57,6 +58,55 @@ test.describe('POS — escritorio', () => {
     const dialogo = page.getByRole('dialog', { name: 'Cobrar' })
     await dialogo.getByRole('radio', { name: 'Crédito' }).check({ force: true })
     await expect(dialogo.getByRole('alert')).toContainText('Selecciona un cliente')
+    await expect(dialogo.getByRole('button', { name: /Confirmar venta/ })).toBeDisabled()
+  })
+
+  test('pago mixto: reparte el total entre medios y envía el detalle al servidor', async ({ page }) => {
+    const { rpcCalls } = await abrirPos(page)
+    await page.getByRole('button', { name: /Agregar Aceite Mobil 1/ }).click()
+    await page.getByRole('button', { name: /Cobrar S\/ 68.50/ }).click()
+
+    const dialogo = page.getByRole('dialog', { name: 'Cobrar' })
+    await dialogo.getByRole('radio', { name: 'Mixto' }).check({ force: true })
+
+    // arranca con todo en efectivo: ya cubre el total
+    await expect(dialogo.getByText('El reparto cubre el total')).toBeVisible()
+
+    // bajar el efectivo deja un faltante y bloquea la confirmación
+    await dialogo.getByRole('spinbutton', { name: /Monto en Efectivo/ }).fill('40')
+    await expect(dialogo.getByText(/Faltan S\/\s28.50/)).toBeVisible()
+    await expect(dialogo.getByRole('button', { name: /Confirmar venta/ })).toBeDisabled()
+
+    // agregar un medio trae automáticamente lo que falta
+    await dialogo.getByRole('button', { name: 'Agregar medio' }).click()
+    await expect(dialogo.getByRole('spinbutton', { name: /Monto en Yape/ })).toHaveValue('28.5')
+    await expect(dialogo.getByText('El reparto cubre el total')).toBeVisible()
+
+    await dialogo.getByRole('button', { name: /Confirmar venta/ }).click()
+    await expect(page.getByRole('dialog', { name: 'Comprobante de venta' })).toBeVisible()
+
+    const llamada = rpcCalls.find((c) => c.name === 'crear_venta')
+    expect(llamada?.body).toMatchObject({
+      p_medio_pago: 'mixto',
+      p_detalles_pago: [
+        { medio: 'efectivo', monto: 40 },
+        { medio: 'yape', monto: 28.5 },
+      ],
+    })
+    // el comprobante muestra el desglose
+    const recibo = page.getByRole('dialog', { name: 'Comprobante de venta' })
+    await expect(recibo).toContainText('Mixto')
+    await expect(recibo).toContainText('Yape')
+  })
+
+  test('pago mixto: no permite repetir un medio ni pasarse del total', async ({ page }) => {
+    await abrirPos(page)
+    await page.getByRole('button', { name: /Agregar Aceite Mobil 1/ }).click()
+    await page.getByRole('button', { name: /Cobrar S\/ 68.50/ }).click()
+    const dialogo = page.getByRole('dialog', { name: 'Cobrar' })
+    await dialogo.getByRole('radio', { name: 'Mixto' }).check({ force: true })
+    await dialogo.getByRole('spinbutton', { name: /Monto en Efectivo/ }).fill('90')
+    await expect(dialogo.getByText(/Te pasas por S\/\s21.50/)).toBeVisible()
     await expect(dialogo.getByRole('button', { name: /Confirmar venta/ })).toBeDisabled()
   })
 
